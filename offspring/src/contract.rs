@@ -1,6 +1,6 @@
 use cosmwasm_std::{
     to_binary, Api, Env, Extern, HandleResponse, HandleResult, HumanAddr,
-    InitResponse, InitResult, Querier, QueryResult, StdError, StdResult, Storage,
+    InitResponse, InitResult, Querier, QueryResult, StdError, StdResult, Storage, ReadonlyStorage,
 };
 use secret_toolkit::utils::{HandleCallback, Query};
 
@@ -10,7 +10,8 @@ use crate::factory_msg::{
 use crate::msg::{
     HandleMsg, InitMsg, QueryAnswer, QueryMsg,
 };
-use crate::state::{State, save, CONFIG_KEY, load};
+use crate::state::{State, FACTORY_INFO, PASSWORD, IS_ACTIVE, OWNER, CONTRACT_ADDR, STATE};
+use crate::storage::KeyedStorage;
 
 ////////////////////////////////////// Init ///////////////////////////////////////
 /// Returns InitResult
@@ -27,18 +28,18 @@ pub fn init<S: Storage, A: Api, Q: Querier>(
     env: Env,
     msg: InitMsg,
 ) -> InitResult {
+    FACTORY_INFO.save(&mut deps.storage, &msg.factory)?;
+    OWNER.save(&mut deps.storage, &msg.owner)?;
+    CONTRACT_ADDR.save(&mut deps.storage, &env.contract.address)?;
+    PASSWORD.save(&mut deps.storage, &msg.password)?;
+    IS_ACTIVE.save(&mut deps.storage, &true)?;
+
     let state = State {
-        factory: msg.factory.clone(),
         label: msg.label.clone(),
-        password: msg.password,
-        active: true,
-        offspring_addr: env.contract.address,
         description: msg.description,
         count: msg.count,
-        owner: msg.owner.clone(),
     };
-
-    save(&mut deps.storage, CONFIG_KEY, &state)?;
+    STATE.save(&mut deps.storage, &state)?;
 
     // perform register callback to factory
     let offspring = FactoryOffspringInfo {
@@ -90,19 +91,20 @@ pub fn try_deactivate<S: Storage, A: Api, Q: Querier>(
     deps: &mut Extern<S, A, Q>,
     env: Env,
 ) -> HandleResult {
-    let mut state: State = load(&mut deps.storage, CONFIG_KEY)?;
-    enforce_active(&state)?;
-    if env.message.sender != state.owner {
+    // let mut state: State = load(&mut deps.storage, CONFIG_KEY)?;
+    enforce_active(&deps.storage)?;
+    let owner = OWNER.load(&deps.storage)?;
+    if env.message.sender != owner {
         return Err(StdError::Unauthorized { backtrace: None });
     }
-    state.active = false;
-    save(&mut deps.storage, CONFIG_KEY, &state)?;
+    IS_ACTIVE.save(&mut deps.storage, &false)?;
 
     // let factory know
+    let factory = FACTORY_INFO.load(&deps.storage)?;
     let deactivate_msg = FactoryHandleMsg::DeactivateOffspring {
-        owner: state.owner.clone(),
+        owner: owner.clone(),
     }
-    .to_cosmos_msg(state.factory.code_hash.clone(), state.factory.address.clone(), None)?;
+    .to_cosmos_msg(factory.code_hash, factory.address, None)?;
 
     Ok(HandleResponse {
         messages: vec![deactivate_msg],
@@ -119,10 +121,10 @@ pub fn try_deactivate<S: Storage, A: Api, Q: Querier>(
 ///
 /// * `deps` - mutable reference to Extern containing all the contract's external dependencies
 pub fn try_increment<S: Storage, A: Api, Q: Querier>(deps: &mut Extern<S, A, Q>) -> HandleResult {
-    let mut state: State = load(&mut deps.storage, CONFIG_KEY)?;
-    enforce_active(&state)?;
+    enforce_active(&deps.storage)?;
+    let mut state = STATE.load(&deps.storage)?;
     state.count += 1;
-    save(&mut deps.storage, CONFIG_KEY, &state)?;
+    STATE.save(&mut deps.storage, &state)?;
 
     Ok(HandleResponse::default())
 }
@@ -141,13 +143,13 @@ pub fn try_reset<S: Storage, A: Api, Q: Querier>(
     env: Env,
     count: i32,
 ) -> HandleResult {
-    let mut state: State = load(&mut deps.storage, CONFIG_KEY)?;
-    enforce_active(&state)?;
-    if env.message.sender != state.owner {
+    enforce_active(&deps.storage)?;
+    let mut state = STATE.load(&deps.storage)?;
+    if env.message.sender != OWNER.load(&deps.storage)? {
         return Err(StdError::Unauthorized { backtrace: None });
     }
     state.count = count;
-    save(&mut deps.storage, CONFIG_KEY, &state)?;
+    STATE.save(&mut deps.storage, &state)?;
 
     Ok(HandleResponse::default())
 }
@@ -180,9 +182,9 @@ fn query_count<S: Storage, A: Api, Q: Querier>(
     address: &HumanAddr,
     viewing_key: String,
 ) -> StdResult<QueryAnswer> {
-    let state: State = load(&deps.storage, CONFIG_KEY)?;
-    if state.owner == *address {
-        enforce_valid_viewing_key(deps, &state, address, viewing_key)?;
+    if OWNER.load(&deps.storage)? == *address {
+        enforce_valid_viewing_key(deps, address, viewing_key)?;
+        let state: State = STATE.load(&deps.storage)?;
         return Ok(QueryAnswer::CountResponse { count: state.count });
     } else {
         return Err(StdError::generic_err(
@@ -204,19 +206,18 @@ fn query_count<S: Storage, A: Api, Q: Querier>(
 /// * `viewing_key` - String key used to authenticate a query.
 fn enforce_valid_viewing_key<S: Storage, A: Api, Q: Querier>(
     deps: &Extern<S, A, Q>,
-    state: &State,
     address: &HumanAddr,
     viewing_key: String,
 ) -> StdResult<()> {
-    let state_clone = state.clone();
+    let factory = FACTORY_INFO.load(&deps.storage)?;
     let key_valid_msg = FactoryQueryMsg::IsKeyValid {
         address: address.clone(),
         viewing_key,
     };
     let key_valid_response: IsKeyValidWrapper = key_valid_msg.query(
         &deps.querier,
-        state_clone.factory.code_hash,
-        state_clone.factory.address,
+        factory.code_hash,
+        factory.address,
     )?;
     // if authenticated
     if key_valid_response.is_key_valid.is_valid {
@@ -236,8 +237,8 @@ fn enforce_valid_viewing_key<S: Storage, A: Api, Q: Querier>(
 /// # Arguments
 ///
 /// * `state` - a reference to the State of the contract.
-fn enforce_active(state: &State) -> StdResult<()> {
-    if state.active {
+fn enforce_active<S: ReadonlyStorage>(storage: &S) -> StdResult<()> {
+    if IS_ACTIVE.load(storage)? {
         Ok(())
     } else {
         return Err(StdError::generic_err("This contract is inactive."));
