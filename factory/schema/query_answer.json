@@ -30,7 +30,7 @@
                 "null"
               ],
               "items": {
-                "$ref": "#/definitions/StoreInactiveOffspringInfo"
+                "$ref": "#/definitions/StoreOffspringInfo"
               }
             }
           }
@@ -78,7 +78,7 @@
               "description": "inactive offspring in no particular order",
               "type": "array",
               "items": {
-                "$ref": "#/definitions/StoreInactiveOffspringInfo"
+                "$ref": "#/definitions/StoreOffspringInfo"
               }
             }
           }
@@ -127,44 +127,44 @@
     }
   ],
   "definitions": {
-    "HumanAddr": {
-      "type": "string"
-    },
-    "StoreInactiveOffspringInfo": {
-      "description": "inactive offspring storage/display format",
+    "ContractInfo": {
+      "description": "code hash and address of a contract",
       "type": "object",
       "required": [
         "address",
-        "label"
+        "code_hash"
       ],
       "properties": {
         "address": {
-          "description": "offspring address",
+          "description": "contract's address",
           "allOf": [
             {
               "$ref": "#/definitions/HumanAddr"
             }
           ]
         },
-        "label": {
-          "description": "label used when initializing offspring",
+        "code_hash": {
+          "description": "contract's code hash string",
           "type": "string"
         }
       }
+    },
+    "HumanAddr": {
+      "type": "string"
     },
     "StoreOffspringInfo": {
       "description": "active offspring info for storage/display",
       "type": "object",
       "required": [
-        "address",
+        "contract",
         "label"
       ],
       "properties": {
-        "address": {
+        "contract": {
           "description": "offspring address",
           "allOf": [
             {
-              "$ref": "#/definitions/HumanAddr"
+              "$ref": "#/definitions/ContractInfo"
             }
           ]
         },

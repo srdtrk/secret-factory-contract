@@ -3,6 +3,7 @@ pub mod msg;
 mod rand;
 pub mod state;
 mod offspring_msg;
+pub mod structs;
 
 #[cfg(target_arch = "wasm32")]
 mod wasm {

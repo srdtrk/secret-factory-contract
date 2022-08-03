@@ -11,7 +11,6 @@ use crate::msg::{
     HandleMsg, InitMsg, QueryAnswer, QueryMsg,
 };
 use crate::state::{State, FACTORY_INFO, PASSWORD, IS_ACTIVE, OWNER, CONTRACT_ADDR, STATE};
-use crate::storage::KeyedStorage;
 
 ////////////////////////////////////// Init ///////////////////////////////////////
 /// Returns InitResult
@@ -102,7 +101,7 @@ pub fn try_deactivate<S: Storage, A: Api, Q: Querier>(
     // let factory know
     let factory = FACTORY_INFO.load(&deps.storage)?;
     let deactivate_msg = FactoryHandleMsg::DeactivateOffspring {
-        owner: owner.clone(),
+        owner,
     }
     .to_cosmos_msg(factory.code_hash, factory.address, None)?;
 

@@ -1,96 +1,33 @@
-use std::any::type_name;
+use cosmwasm_std::{HumanAddr};
 
-use serde::{de::DeserializeOwned, Deserialize, Serialize};
+use secret_toolkit_storage::{Item, Keymap};
 
-use cosmwasm_std::{CanonicalAddr, ReadonlyStorage, StdError, StdResult, Storage};
+use crate::{structs::{CodeInfo, StoreOffspringInfo}};
 
-use secret_toolkit::serialization::{Bincode2, Serde};
-
-use crate::msg::OffspringContractInfo;
-
-/// prefix for storage of owners' inactive offspring
-pub const PREFIX_OWNERS_INACTIVE: &[u8] = b"ownersinactive";
-/// prefix for storage of owners' active offspring
-pub const PREFIX_OWNERS_ACTIVE: &[u8] = b"ownersactive";
-/// prefix for storage of an active offspring info
-pub const PREFIX_ACTIVE_INFO: &[u8] = b"activeinfo";
-/// prefix for storage of a inactive offspring info
-pub const INACTIVE_KEY: &[u8] = b"inactiveinfo";
-/// storage key for prng seed
-pub const PRNG_SEED_KEY: &[u8] = b"prngseed";
-/// storage key for the factory config
-pub const CONFIG_KEY: &[u8] = b"config";
-/// storage key for the active offspring list
-pub const ACTIVE_KEY: &[u8] = b"active";
-/// storage key for the password of the offspring we just instantiated
-pub const PENDING_KEY: &[u8] = b"pending";
 /// pad handle responses and log attributes to blocks of 256 bytes to prevent leaking info based on
 /// response size
 pub const BLOCK_SIZE: usize = 256;
 /// the default number of offspring listed during queries
 pub const DEFAULT_PAGE_SIZE: u32 = 200;
 
-/// grouping the data primarily used when creating a new offspring
-#[derive(Serialize, Deserialize)]
-pub struct Config {
-    /// code hash and address of the offspring contract
-    pub version: OffspringContractInfo,
-    /// factory's create offspring status
-    pub stopped: bool,
-    /// address of the factory admin
-    pub admin: CanonicalAddr,
-}
+/// whether or not the contract is stopped
+pub const IS_STOPPED: Item<bool> = Item::new(b"is_stopped");
+/// storage for the admin of the contract
+pub const ADMIN: Item<HumanAddr> = Item::new(b"admin");
+/// storage for the password of the offspring we just instantiated
+pub const PENDING_PASSWORD: Item<[u8; 32]> = Item::new(b"pending");
+/// storage for the code_id and code_hash of the current offspring
+pub const OFFSPRING_CODE: Item<CodeInfo> = Item::new(b"offspring_version");
+/// storage for prng seed
+pub const PRNG_SEED: Item<Vec<u8>> = Item::new(b"prng_seed");
 
-/// Returns StdResult<()> resulting from saving an item to storage
-///
-/// # Arguments
-///
-/// * `storage` - a mutable reference to the storage this item should go to
-/// * `key` - a byte slice representing the key to access the stored item
-/// * `value` - a reference to the item to store
-pub fn save<T: Serialize, S: Storage>(storage: &mut S, key: &[u8], value: &T) -> StdResult<()> {
-    storage.set(key, &Bincode2::serialize(value)?);
-    Ok(())
-}
-
-/// Removes an item from storage
-///
-/// # Arguments
-///
-/// * `storage` - a mutable reference to the storage this item is in
-/// * `key` - a byte slice representing the key that accesses the stored item
-pub fn remove<S: Storage>(storage: &mut S, key: &[u8]) {
-    storage.remove(key);
-}
-
-/// Returns StdResult<T> from retrieving the item with the specified key.  Returns a
-/// StdError::NotFound if there is no item with that key
-///
-/// # Arguments
-///
-/// * `storage` - a reference to the storage this item is in
-/// * `key` - a byte slice representing the key that accesses the stored item
-pub fn load<T: DeserializeOwned, S: ReadonlyStorage>(storage: &S, key: &[u8]) -> StdResult<T> {
-    Bincode2::deserialize(
-        &storage
-            .get(key)
-            .ok_or_else(|| StdError::not_found(type_name::<T>()))?,
-    )
-}
-
-/// Returns StdResult<Option<T>> from retrieving the item with the specified key.
-/// Returns Ok(None) if there is no item with that key
-///
-/// # Arguments
-///
-/// * `storage` - a reference to the storage this item is in
-/// * `key` - a byte slice representing the key that accesses the stored item
-pub fn may_load<T: DeserializeOwned, S: ReadonlyStorage>(
-    storage: &S,
-    key: &[u8],
-) -> StdResult<Option<T>> {
-    match storage.get(key) {
-        Some(value) => Bincode2::deserialize(&value).map(Some),
-        None => Ok(None),
-    }
-}
+/// storage for all active/inactive offspring data. (HumanAddr refers to the address of the contract)
+pub const OFFSPRING_STORAGE: Keymap<HumanAddr, StoreOffspringInfo> = Keymap::new(b"offspring_store");
+/// storage of all active offspring addresses
+pub const ACTIVE_STORE: Keymap<HumanAddr, bool> = Keymap::new(b"active");
+/// storage of all inactive offspring addresses
+pub const INACTIVE_STORE: Keymap<HumanAddr, bool> = Keymap::new(b"inactive");
+/// owner's active offspring storage. Meant to be used with a suffix of the user's address. 
+pub const OWNERS_ACTIVE: Keymap<HumanAddr, bool> = Keymap::new(b"owners_active");
+/// owner's inactive offspring storage. Meant to be used with a suffix of the user's address. 
+pub const OWNERS_INACTIVE: Keymap<HumanAddr, bool> = Keymap::new(b"owners_inactive");

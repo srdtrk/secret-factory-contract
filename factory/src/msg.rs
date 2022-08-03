@@ -3,13 +3,15 @@ use serde::{Deserialize, Serialize};
 
 use cosmwasm_std::{HumanAddr};
 
+use crate::structs::{StoreOffspringInfo, CodeInfo, ContractInfo};
+
 /// Instantiation message
 #[derive(Serialize, Deserialize, JsonSchema)]
 pub struct InitMsg {
     /// entropy used to generate prng seed
     pub entropy: String,
-    /// offspring contract info
-    pub offspring_contract: OffspringContractInfo,
+    /// offspring code info
+    pub offspring_code_info: CodeInfo,
 }
 
 /// Handle messages
@@ -50,7 +52,7 @@ pub enum HandleMsg {
 
     /// Allows the admin to add a new offspring contract version
     NewOffspringContract {
-        offspring_contract: OffspringContractInfo,
+        offspring_code_info: CodeInfo,
     },
 
     /// Create a viewing key to be used with all factory and offspring authenticated queries
@@ -134,7 +136,7 @@ pub enum QueryAnswer {
         active: Option<Vec<StoreOffspringInfo>>,
         /// lists of the address' inactive offspring
         #[serde(skip_serializing_if = "Option::is_none")]
-        inactive: Option<Vec<StoreInactiveOffspringInfo>>,
+        inactive: Option<Vec<StoreOffspringInfo>>,
     },
     /// List active offspring
     ListActiveOffspring {
@@ -144,7 +146,7 @@ pub enum QueryAnswer {
     /// List inactive offspring in no particular order
     ListInactiveOffspring {
         /// inactive offspring in no particular order
-        inactive: Vec<StoreInactiveOffspringInfo>,
+        inactive: Vec<StoreOffspringInfo>,
     },
     /// Viewing Key Error
     ViewingKeyError { error: String },
@@ -175,24 +177,6 @@ pub enum HandleAnswer {
     },
 }
 
-/// code hash and address of a contract
-#[derive(Serialize, Deserialize, JsonSchema)]
-pub struct ContractInfo {
-    /// contract's code hash string
-    pub code_hash: String,
-    /// contract's address
-    pub address: HumanAddr,
-}
-
-/// Info needed to instantiate an offspring
-#[derive(Serialize, Deserialize, JsonSchema)]
-pub struct OffspringContractInfo {
-    /// code id of the stored offspring contract
-    pub code_id: u64,
-    /// code hash of the stored offspring contract
-    pub code_hash: String,
-}
-
 /// active offspring info
 #[derive(Serialize, Deserialize, Clone, JsonSchema)]
 pub struct OffspringInfo {
@@ -213,56 +197,10 @@ pub struct RegisterOffspringInfo {
 
 impl RegisterOffspringInfo {
     /// takes the register offspring information and creates a store offspring info struct
-    pub fn to_store_offspring_info(&self, address: HumanAddr) -> StoreOffspringInfo {
+    pub fn to_store_offspring_info(&self, contract: ContractInfo) -> StoreOffspringInfo {
         StoreOffspringInfo {
-            address,
+            contract,
             label: self.label.clone(),
         }
     }
-}
-
-// In general, data that is stored for user display may be different from the data used
-// for internal functions of the smart contract. That is why we have StoreOffspringInfo.
-
-/// active offspring info for storage/display
-#[derive(Serialize, Deserialize, Clone, JsonSchema, Debug)]
-pub struct StoreOffspringInfo {
-    /// offspring address
-    pub address: HumanAddr,
-    /// label used when initializing offspring
-    pub label: String,
-}
-
-impl StoreOffspringInfo {
-    /// takes the active offspring information and creates a inactive offspring info struct
-    pub fn to_store_inactive_offspring_info(
-        &self,
-    ) -> StoreInactiveOffspringInfo {
-        StoreInactiveOffspringInfo {
-            address: self.address.clone(),
-            label: self.label.clone(),
-        }
-    }
-}
-
-// in general, when an offspring contract is deactivated, it may require
-// different data to be stored with it, and thus, in theory InactiveOffspringInfo
-// could be different to OffspringInfo. That's why we have InactiveOffspringInfo.
-
-/// inactive offspring info
-#[derive(Serialize, Deserialize, JsonSchema, Clone)]
-pub struct InactiveOffspringInfo {
-    /// label used when initializing offspring
-    pub label: String,
-    /// offspring address
-    pub address: HumanAddr,
-}
-
-/// inactive offspring storage/display format
-#[derive(Serialize, Deserialize, JsonSchema, Clone)]
-pub struct StoreInactiveOffspringInfo {
-    /// offspring address
-    pub address: HumanAddr,
-    /// label used when initializing offspring
-    pub label: String,
 }

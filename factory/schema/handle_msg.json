@@ -120,11 +120,11 @@
         "new_offspring_contract": {
           "type": "object",
           "required": [
-            "offspring_contract"
+            "offspring_code_info"
           ],
           "properties": {
-            "offspring_contract": {
-              "$ref": "#/definitions/OffspringContractInfo"
+            "offspring_code_info": {
+              "$ref": "#/definitions/CodeInfo"
             }
           }
         }
@@ -198,10 +198,7 @@
     }
   ],
   "definitions": {
-    "HumanAddr": {
-      "type": "string"
-    },
-    "OffspringContractInfo": {
+    "CodeInfo": {
       "description": "Info needed to instantiate an offspring",
       "type": "object",
       "required": [
@@ -220,6 +217,9 @@
           "minimum": 0.0
         }
       }
+    },
+    "HumanAddr": {
+      "type": "string"
     },
     "RegisterOffspringInfo": {
       "description": "active offspring info for storage/display",

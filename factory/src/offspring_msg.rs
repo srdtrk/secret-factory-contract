@@ -3,7 +3,7 @@ use serde::{Deserialize, Serialize};
 
 use cosmwasm_std::HumanAddr;
 
-use crate::{msg::ContractInfo, state::BLOCK_SIZE};
+use crate::{state::BLOCK_SIZE, structs::ContractInfo};
 
 /// Instantiation message
 #[derive(Serialize, Deserialize)]
