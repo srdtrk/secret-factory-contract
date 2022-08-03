@@ -8,7 +8,7 @@ This contract makes use of the incubator feature Cashmaps for listing and paging
 
 ## **About the Contracts** ##
 
-The offspring contract is based on the [simple counter template](https://github.com/scrtlabs/secret-template) that everyone should be familiar with. Some additional features were added to it to make it a suitable offspring contract for a factory. Its state now stores some extra fields that are useful for an offspring contract.
+The offspring contract is based on the [simple counter template](https://github.com/scrtlabs/secret-template) that everyone should be familiar with. Some additional features were added to it to make it a suitable offspring contract for a factory and use most up to date storage methods.
 
 The factory registers the offsprings it creates. In order for an offspring to be initialized and registered in the factory, the factory is the one that must be initializing the offspring contract. The registration of the offspring contract is done by a post init callback which carries with it a password to ensure that offspring contracts not initialized by the factory cannot be registered.
 
@@ -25,7 +25,7 @@ The following is an example InitMsg:
 ```json
 {
     "entropy": "random_words",
-    "offspring_contract": {
+    "offspring_code_info": {
         "code_id": 2,
         "code_hash": "D519793AF2623773F46967192C9AFCD9F2E3A2BA0FD927EA6BF3448A723BDE6B"
     }
@@ -67,7 +67,7 @@ The offspring contract version (code id and code hash) can be updated by the adm
 ```json
 {
     "new_offspring_contract": {
-        "offspring_contract": {
+        "offspring_code_info": {
             "code_id": 3,
             "code_hash": "6826E1F57AC79DCA02F5DA9AF5879D1314452509D327ECF9975F2CD15D684D91"
         }
