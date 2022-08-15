@@ -1,6 +1,5 @@
 use schemars::JsonSchema;
-// use secret_toolkit_serialization::{Json};
-use secret_toolkit_storage::Item;
+use secret_toolkit::storage::Item;
 use serde::{Deserialize, Serialize};
 
 use cosmwasm_std::{HumanAddr};

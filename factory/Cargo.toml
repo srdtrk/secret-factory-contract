@@ -40,11 +40,7 @@ schemars = "0.7"
 serde = { version = "1.0.103", default-features = false, features = ["derive"] }
 # serde-json-wasm = "0.4.1"
 snafu = { version = "0.6.3" }
-secret-toolkit = { git = "https://github.com/srdtrk/secret-toolkit", default-features = false, features = ["utils"] }
-secret-toolkit-viewing-key = { git = "https://github.com/srdtrk/secret-toolkit" }
-secret-toolkit-serialization = { git = "https://github.com/srdtrk/secret-toolkit" }
-secret-toolkit-storage = { git = "https://github.com/srdtrk/secret-toolkit" }
-# secret-toolkit-serialization = { version = "0.3" } 
+secret-toolkit = { version = "0.4", default-features = false, features = ["utils", "storage", "serialization", "viewing-key"] }
 subtle = { version = "2.2.3", default-features = false }
 rand_chacha = { version = "0.2.2", default-features = false }
 rand_core = { version =  "0.5.1", default-features = false }

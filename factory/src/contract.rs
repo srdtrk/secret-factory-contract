@@ -8,8 +8,8 @@ use secret_toolkit::{
     
 };
 
-use secret_toolkit_storage::Keymap;
-use secret_toolkit_viewing_key::{ViewingKey, ViewingKeyStore};
+use secret_toolkit::storage::Keymap;
+use secret_toolkit::viewing_key::{ViewingKey, ViewingKeyStore};
 
 use crate::{rand::sha_256, state::{DEFAULT_PAGE_SIZE, PRNG_SEED, OFFSPRING_CODE, IS_STOPPED, ADMIN, PENDING_PASSWORD, OFFSPRING_STORAGE, ACTIVE_STORE, OWNERS_ACTIVE, INACTIVE_STORE, OWNERS_INACTIVE},
     msg::{InitMsg, HandleMsg, RegisterOffspringInfo, HandleAnswer, ResponseStatus, QueryMsg, FilterTypes, QueryAnswer}, structs::{ContractInfo, CodeInfo, StoreOffspringInfo}
@@ -534,20 +534,24 @@ fn display_active_or_inactive_list<S: ReadonlyStorage>(
     let size = page_size.unwrap_or(DEFAULT_PAGE_SIZE);
     let mut list: Vec<StoreOffspringInfo> = vec![];
 
-    let keymap: Keymap<HumanAddr, bool>;
+    let keymap: &Keymap<HumanAddr, bool>;
+    let owners_active_store: Keymap<HumanAddr, bool>;
+    let owners_inactive_store: Keymap<HumanAddr, bool>;
     match filter {
         FilterTypes::Active => {
             if let Some(owner_addr) = owner {
-                keymap = OWNERS_ACTIVE.add_suffix(owner_addr.to_string().as_bytes());
+                owners_active_store = OWNERS_ACTIVE.add_suffix(owner_addr.to_string().as_bytes());
+                keymap = &owners_active_store;
             } else {
-                keymap = ACTIVE_STORE;
+                keymap = &ACTIVE_STORE;
             }
         },
         FilterTypes::Inactive => {
             if let Some(owner_addr) = owner {
-                keymap = OWNERS_INACTIVE.add_suffix(owner_addr.to_string().as_bytes());
+                owners_inactive_store = OWNERS_INACTIVE.add_suffix(owner_addr.to_string().as_bytes());
+                keymap = &owners_inactive_store;
             } else {
-                keymap = INACTIVE_STORE;
+                keymap = &INACTIVE_STORE;
             }
         },
         FilterTypes::All => { return Err(StdError::generic_err("Please select one of active or inactive offspring to list.")); },
