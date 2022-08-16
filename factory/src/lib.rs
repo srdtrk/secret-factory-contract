@@ -1,8 +1,8 @@
 pub mod contract;
 pub mod msg;
+mod offspring_msg;
 mod rand;
 pub mod state;
-mod offspring_msg;
 pub mod structs;
 
 #[cfg(target_arch = "wasm32")]

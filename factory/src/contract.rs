@@ -1,27 +1,28 @@
 use cosmwasm_std::{
-    log, to_binary, Api, Env, Extern, HandleResponse, HandleResult, HumanAddr,
-    InitResponse, InitResult, Querier, QueryResult, ReadonlyStorage, StdError, StdResult, Storage,
+    log, to_binary, Api, Env, Extern, HandleResponse, HandleResult, HumanAddr, InitResponse,
+    InitResult, Querier, QueryResult, ReadonlyStorage, StdError, StdResult, Storage,
 };
 
-use secret_toolkit::{
-    utils::{pad_handle_result, pad_query_result, InitCallback},
-    
-};
+use secret_toolkit::utils::{pad_handle_result, pad_query_result, InitCallback};
 
 use secret_toolkit::storage::Keymap;
 use secret_toolkit::viewing_key::{ViewingKey, ViewingKeyStore};
 
-use crate::{rand::sha_256, state::{DEFAULT_PAGE_SIZE, PRNG_SEED, OFFSPRING_CODE, IS_STOPPED, ADMIN, PENDING_PASSWORD, OFFSPRING_STORAGE, ACTIVE_STORE, OWNERS_ACTIVE, INACTIVE_STORE, OWNERS_INACTIVE},
-    msg::{InitMsg, HandleMsg, RegisterOffspringInfo, HandleAnswer, ResponseStatus, QueryMsg, FilterTypes, QueryAnswer}, structs::{ContractInfo, CodeInfo, StoreOffspringInfo}
-};
-use crate::state::{
-    BLOCK_SIZE
+use crate::state::BLOCK_SIZE;
+use crate::{
+    msg::{
+        FilterTypes, HandleAnswer, HandleMsg, InitMsg, QueryAnswer, QueryMsg,
+        RegisterOffspringInfo, ResponseStatus,
+    },
+    rand::sha_256,
+    state::{
+        ACTIVE_STORE, ADMIN, DEFAULT_PAGE_SIZE, INACTIVE_STORE, IS_STOPPED, OFFSPRING_CODE,
+        OFFSPRING_STORAGE, OWNERS_ACTIVE, OWNERS_INACTIVE, PENDING_PASSWORD, PRNG_SEED,
+    },
+    structs::{CodeInfo, ContractInfo, StoreOffspringInfo},
 };
 
-use crate::{
-    offspring_msg::OffspringInitMsg,
-    rand::Prng,
-};
+use crate::{offspring_msg::OffspringInitMsg, rand::Prng};
 
 ////////////////////////////////////// Init ///////////////////////////////////////
 /// Returns InitResult
@@ -39,7 +40,7 @@ pub fn init<S: Storage, A: Api, Q: Querier>(
     msg: InitMsg,
 ) -> InitResult {
     let prng_seed: Vec<u8> = sha_256(base64::encode(msg.entropy).as_bytes()).to_vec();
-    
+
     PRNG_SEED.save(&mut deps.storage, &prng_seed)?;
     ADMIN.save(&mut deps.storage, &env.message.sender)?;
     IS_STOPPED.save(&mut deps.storage, &false)?;
@@ -72,14 +73,12 @@ pub fn handle<S: Storage, A: Api, Q: Querier>(
         HandleMsg::RegisterOffspring { owner, offspring } => {
             try_register_offspring(deps, env, owner, &offspring)
         }
-        HandleMsg::DeactivateOffspring { owner } => {
-            try_deactivate_offspring(deps, env, &owner)
-        }
+        HandleMsg::DeactivateOffspring { owner } => try_deactivate_offspring(deps, env, &owner),
         HandleMsg::CreateViewingKey { entropy } => try_create_key(deps, env, entropy),
         HandleMsg::SetViewingKey { key, .. } => try_set_key(deps, env, &key),
-        HandleMsg::NewOffspringContract { offspring_code_info } => {
-            try_new_contract(deps, env, offspring_code_info)
-        }
+        HandleMsg::NewOffspringContract {
+            offspring_code_info,
+        } => try_new_contract(deps, env, offspring_code_info),
         HandleMsg::SetStatus { stop } => try_set_status(deps, env, stop),
     };
     pad_handle_result(response, BLOCK_SIZE)
@@ -215,7 +214,9 @@ fn try_register_offspring<S: Storage, A: Api, Q: Querier>(
     // add active list
     ACTIVE_STORE.insert(&mut deps.storage, &offspring_info.address, true)?;
     // add to owner's active list
-    OWNERS_ACTIVE.add_suffix(owner.to_string().as_bytes()).insert(&mut deps.storage, &offspring_info.address, true)?;
+    OWNERS_ACTIVE
+        .add_suffix(owner.to_string().as_bytes())
+        .insert(&mut deps.storage, &offspring_info.address, true)?;
 
     Ok(HandleResponse {
         messages: vec![],
@@ -239,24 +240,33 @@ fn try_deactivate_offspring<S: Storage, A: Api, Q: Querier>(
     env: Env,
     owner: &HumanAddr,
 ) -> HandleResult {
-
     let offspring_addr = &env.message.sender;
 
     // verify offspring is in active list
-    let is_active = ACTIVE_STORE.get(&deps.storage, offspring_addr).unwrap_or(false);
-    if !is_active { return Err(StdError::generic_err("This offspring is already not active")); }
+    let is_active = ACTIVE_STORE
+        .get(&deps.storage, offspring_addr)
+        .unwrap_or(false);
+    if !is_active {
+        return Err(StdError::generic_err(
+            "This offspring is already not active",
+        ));
+    }
 
     // remove from active
     ACTIVE_STORE.remove(&mut deps.storage, offspring_addr)?;
 
     // save to inactive
     INACTIVE_STORE.insert(&mut deps.storage, offspring_addr, true)?;
-    
+
     // remove from owner's active
-    OWNERS_ACTIVE.add_suffix(owner.to_string().as_bytes()).remove(&mut deps.storage, offspring_addr)?;
+    OWNERS_ACTIVE
+        .add_suffix(owner.to_string().as_bytes())
+        .remove(&mut deps.storage, offspring_addr)?;
 
     // save to owner's inactive
-    OWNERS_INACTIVE.add_suffix(owner.to_string().as_bytes()).insert(&mut deps.storage, offspring_addr, true)?;
+    OWNERS_INACTIVE
+        .add_suffix(owner.to_string().as_bytes())
+        .insert(&mut deps.storage, offspring_addr, true)?;
 
     Ok(HandleResponse {
         messages: vec![],
@@ -345,7 +355,12 @@ fn try_create_key<S: Storage, A: Api, Q: Querier>(
     env: Env,
     entropy: String,
 ) -> HandleResult {
-    let key = ViewingKey::create(&mut deps.storage, &env, &env.message.sender, entropy.as_bytes());
+    let key = ViewingKey::create(
+        &mut deps.storage,
+        &env,
+        &env.message.sender,
+        entropy.as_bytes(),
+    );
 
     Ok(HandleResponse {
         messages: vec![],
@@ -397,8 +412,14 @@ pub fn query<S: Storage, A: Api, Q: Querier>(deps: &Extern<S, A, Q>, msg: QueryM
             start_page,
             page_size,
         } => try_list_my(deps, address, viewing_key, filter, start_page, page_size),
-        QueryMsg::ListActiveOffspring { start_page, page_size } => try_list_active(deps, start_page, page_size),
-        QueryMsg::ListInactiveOffspring { start_page, page_size } => try_list_inactive(deps, start_page, page_size),
+        QueryMsg::ListActiveOffspring {
+            start_page,
+            page_size,
+        } => try_list_active(deps, start_page, page_size),
+        QueryMsg::ListInactiveOffspring {
+            start_page,
+            page_size,
+        } => try_list_inactive(deps, start_page, page_size),
         QueryMsg::IsKeyValid {
             address,
             viewing_key,
@@ -437,7 +458,13 @@ fn try_list_active<S: Storage, A: Api, Q: Querier>(
     page_size: Option<u32>,
 ) -> QueryResult {
     to_binary(&QueryAnswer::ListActiveOffspring {
-        active: display_active_or_inactive_list(&deps.storage, None, FilterTypes::Active, start_page, page_size)?,
+        active: display_active_or_inactive_list(
+            &deps.storage,
+            None,
+            FilterTypes::Active,
+            start_page,
+            page_size,
+        )?,
     })
 }
 
@@ -448,11 +475,7 @@ fn try_list_active<S: Storage, A: Api, Q: Querier>(
 /// * `storage` - a reference to the contract's storage
 /// * `address` - a reference to the address whose key should be validated
 /// * `viewing_key` - String key used for authentication
-fn is_key_valid<S: ReadonlyStorage>(
-    storage: &S,
-    address: &HumanAddr,
-    viewing_key: String,
-) -> bool {
+fn is_key_valid<S: ReadonlyStorage>(storage: &S, address: &HumanAddr, viewing_key: String) -> bool {
     return ViewingKey::check(storage, address, &viewing_key).is_ok();
 }
 
@@ -487,9 +510,9 @@ fn try_list_my<S: Storage, A: Api, Q: Querier>(
 
     // list the active offspring
     if types == FilterTypes::Active || types == FilterTypes::All {
-        active_list = Some( display_active_or_inactive_list(
+        active_list = Some(display_active_or_inactive_list(
             &deps.storage,
-            Some( address.clone() ),
+            Some(address.clone()),
             FilterTypes::Active,
             start_page,
             page_size,
@@ -497,9 +520,9 @@ fn try_list_my<S: Storage, A: Api, Q: Querier>(
     }
     // list the inactive offspring
     if types == FilterTypes::Inactive || types == FilterTypes::All {
-        inactive_list = Some( display_active_or_inactive_list(
+        inactive_list = Some(display_active_or_inactive_list(
             &deps.storage,
-            Some( address ),
+            Some(address),
             FilterTypes::Inactive,
             start_page,
             page_size,
@@ -545,32 +568,44 @@ fn display_active_or_inactive_list<S: ReadonlyStorage>(
             } else {
                 keymap = &ACTIVE_STORE;
             }
-        },
+        }
         FilterTypes::Inactive => {
             if let Some(owner_addr) = owner {
-                owners_inactive_store = OWNERS_INACTIVE.add_suffix(owner_addr.to_string().as_bytes());
+                owners_inactive_store =
+                    OWNERS_INACTIVE.add_suffix(owner_addr.to_string().as_bytes());
                 keymap = &owners_inactive_store;
             } else {
                 keymap = &INACTIVE_STORE;
             }
-        },
-        FilterTypes::All => { return Err(StdError::generic_err("Please select one of active or inactive offspring to list.")); },
+        }
+        FilterTypes::All => {
+            return Err(StdError::generic_err(
+                "Please select one of active or inactive offspring to list.",
+            ));
+        }
     }
 
-    let mut paginated_keys_iter = keymap.iter_keys(storage)?.skip((start_page as usize)*(size as usize)).take(size as usize);
+    let mut paginated_keys_iter = keymap
+        .iter_keys(storage)?
+        .skip((start_page as usize) * (size as usize))
+        .take(size as usize);
 
     loop {
         let may_next_elem = paginated_keys_iter.next();
-        if let Some( elem ) = may_next_elem {
+        if let Some(elem) = may_next_elem {
             let contract_addr = elem?;
-            let offspring_info = OFFSPRING_STORAGE.get(storage, &contract_addr)
-                .ok_or(StdError::generic_err("Error occurred while loading offspring data"))?;
+            let offspring_info =
+                OFFSPRING_STORAGE
+                    .get(storage, &contract_addr)
+                    .ok_or(StdError::generic_err(
+                        "Error occurred while loading offspring data",
+                    ))?;
             list.push(offspring_info);
         } else {
             break;
         }
     }
-    
+
     Ok(list)
 }
 
@@ -587,6 +622,12 @@ fn try_list_inactive<S: Storage, A: Api, Q: Querier>(
     page_size: Option<u32>,
 ) -> QueryResult {
     to_binary(&QueryAnswer::ListInactiveOffspring {
-        inactive: display_active_or_inactive_list(&deps.storage, None, FilterTypes::Inactive, start_page, page_size)?,
+        inactive: display_active_or_inactive_list(
+            &deps.storage,
+            None,
+            FilterTypes::Inactive,
+            start_page,
+            page_size,
+        )?,
     })
 }

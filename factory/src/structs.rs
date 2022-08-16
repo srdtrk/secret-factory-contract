@@ -3,7 +3,7 @@
 
 use cosmwasm_std::HumanAddr;
 use schemars::JsonSchema;
-use serde::{Serialize, Deserialize};
+use serde::{Deserialize, Serialize};
 
 /// Info needed to instantiate an offspring
 #[derive(Serialize, Deserialize, JsonSchema)]
@@ -36,7 +36,7 @@ impl CodeInfo {
     pub fn to_contract_info(&self, contract_addr: HumanAddr) -> ContractInfo {
         ContractInfo {
             code_hash: self.code_hash.clone(),
-            address: contract_addr
+            address: contract_addr,
         }
     }
 }

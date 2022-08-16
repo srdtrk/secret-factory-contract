@@ -1,16 +1,14 @@
 use cosmwasm_std::{
-    to_binary, Api, Env, Extern, HandleResponse, HandleResult, HumanAddr,
-    InitResponse, InitResult, Querier, QueryResult, StdError, StdResult, Storage, ReadonlyStorage,
+    to_binary, Api, Env, Extern, HandleResponse, HandleResult, HumanAddr, InitResponse, InitResult,
+    Querier, QueryResult, ReadonlyStorage, StdError, StdResult, Storage,
 };
 use secret_toolkit::utils::{HandleCallback, Query};
 
 use crate::factory_msg::{
     FactoryHandleMsg, FactoryOffspringInfo, FactoryQueryMsg, IsKeyValidWrapper,
 };
-use crate::msg::{
-    HandleMsg, InitMsg, QueryAnswer, QueryMsg,
-};
-use crate::state::{State, FACTORY_INFO, PASSWORD, IS_ACTIVE, OWNER, CONTRACT_ADDR, STATE};
+use crate::msg::{HandleMsg, InitMsg, QueryAnswer, QueryMsg};
+use crate::state::{State, CONTRACT_ADDR, FACTORY_INFO, IS_ACTIVE, OWNER, PASSWORD, STATE};
 
 ////////////////////////////////////// Init ///////////////////////////////////////
 /// Returns InitResult
@@ -100,10 +98,11 @@ pub fn try_deactivate<S: Storage, A: Api, Q: Querier>(
 
     // let factory know
     let factory = FACTORY_INFO.load(&deps.storage)?;
-    let deactivate_msg = FactoryHandleMsg::DeactivateOffspring {
-        owner,
-    }
-    .to_cosmos_msg(factory.code_hash, factory.address, None)?;
+    let deactivate_msg = FactoryHandleMsg::DeactivateOffspring { owner }.to_cosmos_msg(
+        factory.code_hash,
+        factory.address,
+        None,
+    )?;
 
     Ok(HandleResponse {
         messages: vec![deactivate_msg],
@@ -213,11 +212,8 @@ fn enforce_valid_viewing_key<S: Storage, A: Api, Q: Querier>(
         address: address.clone(),
         viewing_key,
     };
-    let key_valid_response: IsKeyValidWrapper = key_valid_msg.query(
-        &deps.querier,
-        factory.code_hash,
-        factory.address,
-    )?;
+    let key_valid_response: IsKeyValidWrapper =
+        key_valid_msg.query(&deps.querier, factory.code_hash, factory.address)?;
     // if authenticated
     if key_valid_response.is_key_valid.is_valid {
         Ok(())

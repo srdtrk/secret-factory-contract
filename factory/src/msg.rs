@@ -1,9 +1,9 @@
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
-use cosmwasm_std::{HumanAddr};
+use cosmwasm_std::HumanAddr;
 
-use crate::structs::{StoreOffspringInfo, CodeInfo, ContractInfo};
+use crate::structs::{CodeInfo, ContractInfo, StoreOffspringInfo};
 
 /// Instantiation message
 #[derive(Serialize, Deserialize, JsonSchema)]
@@ -51,9 +51,7 @@ pub enum HandleMsg {
     },
 
     /// Allows the admin to add a new offspring contract version
-    NewOffspringContract {
-        offspring_code_info: CodeInfo,
-    },
+    NewOffspringContract { offspring_code_info: CodeInfo },
 
     /// Create a viewing key to be used with all factory and offspring authenticated queries
     CreateViewingKey { entropy: String },

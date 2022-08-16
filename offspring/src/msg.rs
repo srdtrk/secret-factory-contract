@@ -13,7 +13,6 @@ pub struct InitMsg {
     /// Optional text description of this offspring
     pub description: Option<String>,
 
-    
     pub owner: HumanAddr,
     pub count: i32,
 }
@@ -55,7 +54,5 @@ pub struct ContractInfo {
 #[derive(Serialize, Deserialize, Debug, JsonSchema)]
 #[serde(rename_all = "snake_case")]
 pub enum QueryAnswer {
-    CountResponse {
-        count: i32,
-    }
+    CountResponse { count: i32 },
 }

@@ -2,9 +2,9 @@ use schemars::JsonSchema;
 use secret_toolkit::storage::Item;
 use serde::{Deserialize, Serialize};
 
-use cosmwasm_std::{HumanAddr};
+use cosmwasm_std::HumanAddr;
 
-use crate::{msg::ContractInfo};
+use crate::msg::ContractInfo;
 
 /// pad handle responses and log attributes to blocks of 256 bytes to prevent leaking info based on
 /// response size
@@ -23,7 +23,6 @@ pub const PASSWORD: Item<[u8; 32]> = Item::new(b"password");
 /// used to store the state of this template contract
 pub const STATE: Item<State> = Item::new(b"state");
 
-
 /// State of the offspring contract
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct State {
@@ -31,7 +30,7 @@ pub struct State {
     pub label: String,
     /// Optional text description of this offspring
     pub description: Option<String>,
-    
+
     /// the count for the counter
     pub count: i32,
 }
