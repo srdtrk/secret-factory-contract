@@ -1,9 +1,9 @@
-use cosmwasm_std::HumanAddr;
+use cosmwasm_std::Addr;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
-pub struct InitMsg {
+pub struct InstantiateMsg {
     /// factory contract code hash and address
     pub factory: ContractInfo,
     /// label used when initializing offspring
@@ -13,14 +13,14 @@ pub struct InitMsg {
     /// Optional text description of this offspring
     pub description: Option<String>,
 
-    pub owner: HumanAddr,
+    pub owner: String,
     pub count: i32,
 }
 
 /// Handle messages
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 #[serde(rename_all = "snake_case")]
-pub enum HandleMsg {
+pub enum ExecuteMsg {
     Increment {},
     Reset { count: i32 },
     // Deactivate can only be called by owner in this template
@@ -35,7 +35,7 @@ pub enum QueryMsg {
     // to demonstrate how to use the viewing key in the factory.
     GetCount {
         /// address to authenticate as a viewer
-        address: HumanAddr,
+        address: String,
         /// viewer's viewing key
         viewing_key: String,
     },
@@ -47,7 +47,7 @@ pub struct ContractInfo {
     /// contract's code hash string
     pub code_hash: String,
     /// contract's address
-    pub address: HumanAddr,
+    pub address: Addr,
 }
 
 /// responses to queries

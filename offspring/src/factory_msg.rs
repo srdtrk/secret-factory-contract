@@ -1,4 +1,4 @@
-use cosmwasm_std::HumanAddr;
+use cosmwasm_std::Addr;
 use serde::{Deserialize, Serialize};
 
 use secret_toolkit::utils::{HandleCallback, Query};
@@ -8,14 +8,14 @@ use crate::state::BLOCK_SIZE;
 /// Factory handle messages to be used by offspring.
 #[derive(Serialize)]
 #[serde(rename_all = "snake_case")]
-pub enum FactoryHandleMsg {
+pub enum FactoryExecuteMsg {
     /// RegisterOffspring saves the offspring info of a newly instantiated contract and adds it to the list
     /// of active offspring contracts as well
     ///
     /// Only offspring will use this function
     RegisterOffspring {
         /// owner of the offspring
-        owner: HumanAddr,
+        owner: Addr,
         /// offspring information needed by the factory
         offspring: FactoryOffspringInfo,
     },
@@ -23,11 +23,11 @@ pub enum FactoryHandleMsg {
     /// DeactivateOffspring tells the factory that the offspring is inactive.
     DeactivateOffspring {
         /// offspring's owner
-        owner: HumanAddr,
+        owner: Addr,
     },
 }
 
-impl HandleCallback for FactoryHandleMsg {
+impl HandleCallback for FactoryExecuteMsg {
     const BLOCK_SIZE: usize = BLOCK_SIZE;
 }
 
@@ -48,7 +48,7 @@ pub enum FactoryQueryMsg {
     /// authenticates the supplied address/viewing key. This should be called by offspring.
     IsKeyValid {
         /// address whose viewing key is being authenticated
-        address: HumanAddr,
+        address: Addr,
         /// viewing key
         viewing_key: String,
     },
