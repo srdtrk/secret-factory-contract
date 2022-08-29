@@ -1,17 +1,12 @@
 {
   "$schema": "http://json-schema.org/draft-07/schema#",
-  "title": "InitMsg",
+  "title": "InstantiateMsg",
   "description": "Instantiation message",
   "type": "object",
   "required": [
-    "entropy",
     "offspring_code_info"
   ],
   "properties": {
-    "entropy": {
-      "description": "entropy used to generate prng seed",
-      "type": "string"
-    },
     "offspring_code_info": {
       "description": "offspring code info",
       "allOf": [

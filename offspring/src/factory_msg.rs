@@ -9,17 +9,6 @@ use crate::state::BLOCK_SIZE;
 #[derive(Serialize)]
 #[serde(rename_all = "snake_case")]
 pub enum FactoryExecuteMsg {
-    /// RegisterOffspring saves the offspring info of a newly instantiated contract and adds it to the list
-    /// of active offspring contracts as well
-    ///
-    /// Only offspring will use this function
-    RegisterOffspring {
-        /// owner of the offspring
-        owner: Addr,
-        /// offspring information needed by the factory
-        offspring: FactoryOffspringInfo,
-    },
-
     /// DeactivateOffspring tells the factory that the offspring is inactive.
     DeactivateOffspring {
         /// offspring's owner
@@ -34,11 +23,13 @@ impl HandleCallback for FactoryExecuteMsg {
 /// this corresponds to RegisterOffspringInfo in factory, it is used to register
 /// an offspring in the factory after the callback.
 #[derive(Serialize)]
+#[serde(rename_all = "snake_case")]
 pub struct FactoryOffspringInfo {
     /// label used when initializing offspring
     pub label: String,
-    /// offspring password
-    pub password: [u8; 32],
+    pub owner: Addr,
+    pub address: Addr,
+    pub code_hash: String,
 }
 
 /// the factory's query messages this offspring will call

@@ -18,13 +18,12 @@ Another important feature these contracts implement is that user viewing keys ar
 
 ## **Instantiating the Factory Contract** ##
 
-The only data factory template requires is the code id and code hash of the offspring contract. And some entropy is needed for prng seed. The initializer of the factory contract gains admin status.
+The only data factory template requires is the code id and code hash of the offspring contract. The initializer of the factory contract gains admin status.
 
 The following is an example InitMsg:
 
 ```json
 {
-    "entropy": "random_words",
     "offspring_code_info": {
         "code_id": 2,
         "code_hash": "D519793AF2623773F46967192C9AFCD9F2E3A2BA0FD927EA6BF3448A723BDE6B"
@@ -44,7 +43,6 @@ The following is an example message to create an offspring:
 {
     "create_offspring": {
         "label": "my_counter",
-        "entropy": "random_words",
         "owner": "secret1ap26qrlp8mcq2pg6r47w43l0y8zkqm8a450s03",
         "count": 3,
         "description": "this is the first offspring of this factory."
@@ -54,8 +52,7 @@ The following is an example message to create an offspring:
 
 |   **Name**  |      **Type**      |                                                **Description**                                                | **Optional** | **Value If Omitted** |
 |:-----------:|:------------------:|:-------------------------------------------------------------------------------------------------------------:|:------------:|:--------------------:|
-|    label    |       String       | Every contract in secret network can be labelled when initializing. This is the label given to the offspring. |      No      |                      |
-|   entropy   |       String       | Used in generating the password which is used to authenticate that offspring was created by this factory      |      No      |                      |
+|    label    |       String       | Every contract in secret network can be labelled when initializing. This is the label given to the offspring. |      No      |                      |                    |
 |    owner    | String (HumanAddr) | The user with additional privileges in the offspring.                                                         |      No      |                      |
 |    count    |    number (i32)    | The initial count offspring template starts with.                                                             |      No      |                      |
 | description |       String       | This string is stored in the offspring. Currently it serves no purpose.                                       |      Yes     |         None         |

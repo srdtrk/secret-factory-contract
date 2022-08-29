@@ -2,14 +2,12 @@ use cosmwasm_std::Addr;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
-#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+#[derive(Serialize, Deserialize, Clone, Debug, JsonSchema)]
 pub struct InstantiateMsg {
     /// factory contract code hash and address
     pub factory: ContractInfo,
     /// label used when initializing offspring
     pub label: String,
-    /// password to be used by factory
-    pub password: [u8; 32],
     /// Optional text description of this offspring
     pub description: Option<String>,
 
@@ -18,7 +16,7 @@ pub struct InstantiateMsg {
 }
 
 /// Handle messages
-#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+#[derive(Serialize, Deserialize, Clone, Debug, JsonSchema)]
 #[serde(rename_all = "snake_case")]
 pub enum ExecuteMsg {
     Increment {},
@@ -28,7 +26,7 @@ pub enum ExecuteMsg {
 }
 
 /// Queries
-#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+#[derive(Serialize, Deserialize, Clone, Debug, JsonSchema)]
 #[serde(rename_all = "snake_case")]
 pub enum QueryMsg {
     // GetCount returns the current count as a json-encoded number. Can only be queried by the owner,
@@ -42,7 +40,7 @@ pub enum QueryMsg {
 }
 
 /// code hash and address of a contract
-#[derive(Serialize, Deserialize, JsonSchema, Clone, PartialEq, Debug)]
+#[derive(Serialize, Deserialize, JsonSchema, Clone, Debug)]
 pub struct ContractInfo {
     /// contract's code hash string
     pub code_hash: String,

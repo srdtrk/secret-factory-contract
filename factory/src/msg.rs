@@ -1,15 +1,13 @@
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
-use cosmwasm_std::HumanAddr;
+use cosmwasm_std::Addr;
 
-use crate::structs::{CodeInfo, ContractInfo, StoreOffspringInfo};
+use crate::structs::{CodeInfo, StoreOffspringInfo};
 
 /// Instantiation message
 #[derive(Serialize, Deserialize, JsonSchema)]
-pub struct InitMsg {
-    /// entropy used to generate prng seed
-    pub entropy: String,
+pub struct InstantiateMsg {
     /// offspring code info
     pub offspring_code_info: CodeInfo,
 }
@@ -17,37 +15,24 @@ pub struct InitMsg {
 /// Handle messages
 #[derive(Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "snake_case")]
-pub enum HandleMsg {
+pub enum ExecuteMsg {
     /// CreateOffspring will instantiate a new offspring contract
     CreateOffspring {
         /// String used to label when instantiating offspring contract.
         label: String,
-        /// Used to generate the password for the offspring contract
-        entropy: String,
         //  the rest are meant to be contract specific data
         /// address of the owner associated to this offspring contract
-        owner: HumanAddr,
+        owner: String,
         /// the count for the counter offspring template
         count: i32,
         #[serde(default)]
         description: Option<String>,
     },
 
-    /// RegisterOffspring saves the offspring info of a newly instantiated contract and adds it to the list
-    /// of active offspring contracts as well
-    ///
-    /// Only offspring will use this function
-    RegisterOffspring {
-        /// owner of the offspring
-        owner: HumanAddr,
-        /// offspring information needed by the factory
-        offspring: RegisterOffspringInfo,
-    },
-
     /// DeactivateOffspring tells the factory that the offspring is inactive.
     DeactivateOffspring {
         /// offspring's owner
-        owner: HumanAddr,
+        owner: Addr,
     },
 
     /// Allows the admin to add a new offspring contract version
@@ -74,7 +59,7 @@ pub enum QueryMsg {
     /// lists all offspring whose owner is the given address.
     ListMyOffspring {
         // address whose activity to display
-        address: HumanAddr,
+        address: String,
         /// viewing key
         viewing_key: String,
         /// optional filter for only active or inactive offspring.  If not specified, lists all
@@ -108,14 +93,14 @@ pub enum QueryMsg {
     /// authenticates the supplied address/viewing key. This should be called by offspring.
     IsKeyValid {
         /// address whose viewing key is being authenticated
-        address: HumanAddr,
+        address: String,
         /// viewing key
         viewing_key: String,
     },
 }
 
 /// the filter types when viewing an address' offspring
-#[derive(Serialize, Deserialize, JsonSchema, PartialEq)]
+#[derive(Serialize, Deserialize, JsonSchema, PartialEq, Eq)]
 #[serde(rename_all = "snake_case")]
 pub enum FilterTypes {
     Active,
@@ -163,8 +148,6 @@ pub enum ResponseStatus {
 #[derive(Serialize, Deserialize, Debug, JsonSchema)]
 #[serde(rename_all = "snake_case")]
 pub enum HandleAnswer {
-    /// response from creating a viewing key
-    ViewingKey { key: String },
     /// generic status response
     Status {
         /// success or failure
@@ -173,32 +156,4 @@ pub enum HandleAnswer {
         #[serde(skip_serializing_if = "Option::is_none")]
         message: Option<String>,
     },
-}
-
-/// active offspring info
-#[derive(Serialize, Deserialize, Clone, JsonSchema)]
-pub struct OffspringInfo {
-    /// offspring address
-    pub address: HumanAddr,
-    /// label used when initializing offspring
-    pub label: String,
-}
-
-/// active offspring info for storage/display
-#[derive(Serialize, Deserialize, JsonSchema, Debug)]
-pub struct RegisterOffspringInfo {
-    /// label used when initializing offspring
-    pub label: String,
-    /// offspring password
-    pub password: [u8; 32],
-}
-
-impl RegisterOffspringInfo {
-    /// takes the register offspring information and creates a store offspring info struct
-    pub fn to_store_offspring_info(&self, contract: ContractInfo) -> StoreOffspringInfo {
-        StoreOffspringInfo {
-            contract,
-            label: self.label.clone(),
-        }
-    }
 }

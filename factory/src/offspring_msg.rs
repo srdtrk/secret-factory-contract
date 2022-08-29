@@ -1,26 +1,24 @@
+use cosmwasm_std::Addr;
 use secret_toolkit::utils::InitCallback;
 use serde::{Deserialize, Serialize};
-
-use cosmwasm_std::HumanAddr;
 
 use crate::{state::BLOCK_SIZE, structs::ContractInfo};
 
 /// Instantiation message
 #[derive(Serialize, Deserialize)]
-pub struct OffspringInitMsg {
+pub struct OffspringInstantiateMsg {
     /// factory contract code hash and address
     pub factory: ContractInfo,
     /// label used when initializing offspring
     pub label: String,
-    /// String password for the offspring
-    pub password: [u8; 32],
-
-    pub owner: HumanAddr,
-    pub count: i32,
+    /// Optional text description of this offspring
     #[serde(default)]
     pub description: Option<String>,
+
+    pub owner: String,
+    pub count: i32,
 }
 
-impl InitCallback for OffspringInitMsg {
+impl InitCallback for OffspringInstantiateMsg {
     const BLOCK_SIZE: usize = BLOCK_SIZE;
 }

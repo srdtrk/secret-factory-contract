@@ -1,6 +1,5 @@
 use cosmwasm_std::{
-    entry_point, to_binary, Addr, Binary, Deps, DepsMut, Env, MessageInfo, Response, StdError,
-    StdResult, Storage,
+    entry_point, to_binary, Addr, Binary, Deps, DepsMut, Env, MessageInfo, Response, Storage,
 };
 use secret_toolkit::utils::{HandleCallback, Query};
 
@@ -9,12 +8,12 @@ use crate::factory_msg::{
     FactoryExecuteMsg, FactoryOffspringInfo, FactoryQueryMsg, IsKeyValidWrapper,
 };
 use crate::msg::{ExecuteMsg, InstantiateMsg, QueryAnswer, QueryMsg};
-use crate::state::{State, CONTRACT_ADDR, FACTORY_INFO, IS_ACTIVE, OWNER, PASSWORD, STATE};
+use crate::state::{State, CONTRACT_ADDR, FACTORY_INFO, IS_ACTIVE, OWNER, STATE};
 
 ////////////////////////////////////// Init ///////////////////////////////////////
-/// Returns InitResult
+/// Returns Result<Response, ContractError>
 ///
-/// Initializes the offspring con&tract state.
+/// Initializes the offspring contract state.
 ///
 /// # Arguments
 ///
@@ -28,12 +27,14 @@ pub fn instantiate(
     env: Env,
     _info: MessageInfo,
     msg: InstantiateMsg,
-) -> StdResult<Response> {
+) -> Result<Response, ContractError> {
+    return Err(ContractError::CustomError {
+        val: "debug1".to_string(),
+    });
     FACTORY_INFO.save(deps.storage, &msg.factory)?;
     let owner_addr = deps.api.addr_validate(&msg.owner)?;
     OWNER.save(deps.storage, &owner_addr)?;
     CONTRACT_ADDR.save(deps.storage, &env.contract.address)?;
-    PASSWORD.save(deps.storage, &msg.password)?;
     IS_ACTIVE.save(deps.storage, &true)?;
 
     let state = State {
@@ -44,24 +45,17 @@ pub fn instantiate(
     STATE.save(deps.storage, &state)?;
 
     // perform register callback to factory
-    let offspring = FactoryOffspringInfo {
+    let offspring_info = FactoryOffspringInfo {
         label: msg.label,
-        password: msg.password,
-    };
-    let reg_offspring_msg = FactoryExecuteMsg::RegisterOffspring {
         owner: owner_addr,
-        offspring,
+        address: env.contract.address,
+        code_hash: env.contract.code_hash,
     };
-    let cosmos_msg = reg_offspring_msg.to_cosmos_msg(
-        msg.factory.code_hash,
-        msg.factory.address.to_string(),
-        None,
-    )?;
 
-    Ok(Response::new().add_message(cosmos_msg))
+    Ok(Response::new().set_data(to_binary(&offspring_info)?))
 }
 
-///////////////////////////////////// Handle //////////////////////////////////////
+///////////////////////////////////// Execute //////////////////////////////////////
 /// Returns Result<Response, ContractError>
 ///
 /// # Arguments
@@ -90,7 +84,7 @@ pub fn execute(
 ///
 /// # Arguments
 ///
-/// * `deps`  - DepsMut containing all the contract's external dependencies
+/// * `deps` - DepsMut containing all the contract's external dependencies
 /// * `info` - Carries the info of who sent the message and how much native funds were sent along
 pub fn try_deactivate(deps: DepsMut, info: MessageInfo) -> Result<Response, ContractError> {
     // let mut state: State = load(deps.storage, CONFIG_KEY)?;
@@ -128,7 +122,7 @@ pub fn try_increment(deps: DepsMut) -> Result<Response, ContractError> {
     Ok(Response::new())
 }
 
-/// Returns HandleResult
+/// Returns Result<Response, ContractError>
 ///
 /// resets the counter to count. Can only be executed by owner.
 ///
@@ -150,7 +144,7 @@ pub fn try_reset(deps: DepsMut, info: MessageInfo, count: i32) -> Result<Respons
 }
 
 /////////////////////////////////////// Query /////////////////////////////////////
-/// Returns QueryResult
+/// Returns Result<Binary, ContractError>
 ///
 /// # Arguments
 ///
@@ -158,47 +152,52 @@ pub fn try_reset(deps: DepsMut, info: MessageInfo, count: i32) -> Result<Respons
 /// * `_env` - Env of contract's environment
 /// * `msg`  - QueryMsg passed in with the query call
 #[entry_point]
-pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
+pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> Result<Binary, ContractError> {
     match msg {
         QueryMsg::GetCount {
             address,
             viewing_key,
-        } => to_binary(&query_count(deps, address, viewing_key)?),
+        } => Ok(to_binary(&query_count(deps, address, viewing_key)?)?),
     }
 }
 
-/// Returns StdResult<CountResponse> displaying the count.
+/// Returns Result<QueryAnswer, ContractError> displaying the count.
 ///
 /// # Arguments
 ///
 /// * `deps`        - Deps containing all the contract's external dependencies
 /// * `address`     - a reference to the address whose viewing key is being validated.
 /// * `viewing_key` - String key used to authenticate the query.
-fn query_count(deps: Deps, address: String, viewing_key: String) -> StdResult<QueryAnswer> {
+fn query_count(
+    deps: Deps,
+    address: String,
+    viewing_key: String,
+) -> Result<QueryAnswer, ContractError> {
     let addr = deps.api.addr_validate(&address)?;
     if OWNER.load(deps.storage)? == addr {
         enforce_valid_viewing_key(deps, &addr, viewing_key)?;
         let state: State = STATE.load(deps.storage)?;
-        return Ok(QueryAnswer::CountResponse { count: state.count });
+        Ok(QueryAnswer::CountResponse { count: state.count })
     } else {
-        return Err(StdError::generic_err(
-            // error message chosen as to not leak information.
-            "This address does not have permission and/or viewing key is not valid",
-        ));
+        Err(ContractError::ViewingKeyOrUnauthorized {})
     }
 }
 
-/// Returns StdResult<()>
+/// Returns Result<(), ContractError>
 ///
 /// makes sure that the address and the viewing key match in the factory contract.
 ///
 /// # Arguments
 ///
-/// * `deps` - Deps containing all the contract's external dependencies.
-/// * `state` - a reference to the State of the contract.
-/// * `address` - a reference to the address whose viewing key is being validated.
+/// * `deps`        - Deps containing all the contract's external dependencies.
+/// * `state`       - a reference to the State of the contract.
+/// * `address`     - a reference to the address whose viewing key is being validated.
 /// * `viewing_key` - String key used to authenticate a query.
-fn enforce_valid_viewing_key(deps: Deps, address: &Addr, viewing_key: String) -> StdResult<()> {
+fn enforce_valid_viewing_key(
+    deps: Deps,
+    address: &Addr,
+    viewing_key: String,
+) -> Result<(), ContractError> {
     let factory = FACTORY_INFO.load(deps.storage)?;
     let key_valid_msg = FactoryQueryMsg::IsKeyValid {
         address: address.clone(),
@@ -210,24 +209,21 @@ fn enforce_valid_viewing_key(deps: Deps, address: &Addr, viewing_key: String) ->
     if key_valid_response.is_key_valid.is_valid {
         Ok(())
     } else {
-        return Err(StdError::generic_err(
-            // error message chosen as to not leak information.
-            "This address does not have permission and/or viewing key is not valid",
-        ));
+        Err(ContractError::ViewingKeyOrUnauthorized {})
     }
 }
 
-/// Returns StdResult<()>
+/// Returns Result<(), ContractError>
 ///
 /// makes sure that the contract state is active
 ///
 /// # Arguments
 ///
 /// * `state` - a reference to the State of the contract.
-fn enforce_active(storage: &dyn Storage) -> StdResult<()> {
+fn enforce_active(storage: &dyn Storage) -> Result<(), ContractError> {
     if IS_ACTIVE.load(storage)? {
         Ok(())
     } else {
-        return Err(StdError::generic_err("This contract is inactive."));
+        Err(ContractError::Inactive {})
     }
 }

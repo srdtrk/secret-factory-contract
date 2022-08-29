@@ -18,13 +18,11 @@ pub const OWNER: Item<Addr> = Item::new(b"owner");
 pub const CONTRACT_ADDR: Item<Addr> = Item::new(b"contract_addr");
 /// stores whether or not the contract is still active
 pub const IS_ACTIVE: Item<bool> = Item::new(b"active");
-/// stores the password used to authenticate this contract to the factory
-pub const PASSWORD: Item<[u8; 32]> = Item::new(b"password");
 /// used to store the state of this template contract
 pub const STATE: Item<State> = Item::new(b"state");
 
 /// State of the offspring contract
-#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+#[derive(Serialize, Deserialize, Clone, Debug, JsonSchema)]
 pub struct State {
     /// label used when initializing offspring
     pub label: String,

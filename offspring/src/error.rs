@@ -6,8 +6,14 @@ pub enum ContractError {
     #[error("{0}")]
     Std(#[from] StdError),
 
+    #[error("This contract is inactive")]
+    Inactive {},
+
     #[error("Unauthorized")]
     Unauthorized {},
+
+    #[error("This address is unauthorized and/or viewing key is not valid")]
+    ViewingKeyOrUnauthorized {},
 
     #[error("Custom Error val: {val:?}")]
     CustomError { val: String },

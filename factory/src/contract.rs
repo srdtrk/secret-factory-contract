@@ -1,6 +1,6 @@
 use cosmwasm_std::{
-    log, to_binary, Api, Env, Extern, HandleResponse, HandleResult, HumanAddr, InitResponse,
-    InitResult, Querier, QueryResult, ReadonlyStorage, StdError, StdResult, Storage,
+    entry_point, from_binary, to_binary, Addr, Binary, CosmosMsg, Deps, DepsMut, Env, MessageInfo,
+    Reply, Response, Storage, SubMsg, SubMsgResult, WasmMsg,
 };
 
 use secret_toolkit::utils::{pad_handle_result, pad_query_result, InitCallback};
@@ -8,402 +8,344 @@ use secret_toolkit::utils::{pad_handle_result, pad_query_result, InitCallback};
 use secret_toolkit::storage::Keymap;
 use secret_toolkit::viewing_key::{ViewingKey, ViewingKeyStore};
 
-use crate::state::BLOCK_SIZE;
+use crate::error::ContractError;
+use crate::state::{BLOCK_SIZE, OFFSPRING_INSTANTIATE_REPLY_ID};
+use crate::structs::ReplyOffspringInfo;
 use crate::{
     msg::{
-        FilterTypes, HandleAnswer, HandleMsg, InitMsg, QueryAnswer, QueryMsg,
-        RegisterOffspringInfo, ResponseStatus,
+        ExecuteMsg, FilterTypes, HandleAnswer, InstantiateMsg, QueryAnswer, QueryMsg,
+        ResponseStatus,
     },
-    rand::sha_256,
     state::{
         ACTIVE_STORE, ADMIN, DEFAULT_PAGE_SIZE, INACTIVE_STORE, IS_STOPPED, OFFSPRING_CODE,
-        OFFSPRING_STORAGE, OWNERS_ACTIVE, OWNERS_INACTIVE, PENDING_PASSWORD, PRNG_SEED,
+        OFFSPRING_STORAGE, OWNERS_ACTIVE, OWNERS_INACTIVE,
     },
     structs::{CodeInfo, ContractInfo, StoreOffspringInfo},
 };
 
-use crate::{offspring_msg::OffspringInitMsg, rand::Prng};
+use crate::offspring_msg::OffspringInstantiateMsg;
 
 ////////////////////////////////////// Init ///////////////////////////////////////
-/// Returns InitResult
+/// Returns Result<Response, ContractError>
 ///
-/// Initializes the factory and creates a prng from the entropy String
+/// Initializes the offspring contract state.
 ///
 /// # Arguments
 ///
-/// * `deps` - mutable reference to Extern containing all the contract's external dependencies
-/// * `env` - Env of contract's environment
-/// * `msg` - InitMsg passed in with the instantiation message
-pub fn init<S: Storage, A: Api, Q: Querier>(
-    deps: &mut Extern<S, A, Q>,
-    env: Env,
-    msg: InitMsg,
-) -> InitResult {
-    let prng_seed: Vec<u8> = sha_256(base64::encode(msg.entropy).as_bytes()).to_vec();
+/// * `deps`  - DepsMut containing all the contract's external dependencies
+/// * `_env`  - Env of contract's environment
+/// * `_info` - Carries the info of who sent the message and how much native funds were sent
+/// * `msg`   - InitMsg passed in with the instantiation message
+#[entry_point]
+pub fn instantiate(
+    deps: DepsMut,
+    _env: Env,
+    info: MessageInfo,
+    msg: InstantiateMsg,
+) -> Result<Response, ContractError> {
+    ADMIN.save(deps.storage, &info.sender)?;
+    IS_STOPPED.save(deps.storage, &false)?;
+    OFFSPRING_CODE.save(deps.storage, &msg.offspring_code_info)?;
 
-    PRNG_SEED.save(&mut deps.storage, &prng_seed)?;
-    ADMIN.save(&mut deps.storage, &env.message.sender)?;
-    IS_STOPPED.save(&mut deps.storage, &false)?;
-    OFFSPRING_CODE.save(&mut deps.storage, &msg.offspring_code_info)?;
-
-    Ok(InitResponse::default())
+    Ok(Response::new())
 }
 
-///////////////////////////////////// Handle //////////////////////////////////////
-/// Returns HandleResult
+///////////////////////////////////// Execute //////////////////////////////////////
+/// Returns Result<Response, ContractError>
 ///
 /// # Arguments
 ///
-/// * `deps` - mutable reference to Extern containing all the contract's external dependencies
-/// * `env` - Env of contract's environment
-/// * `msg` - HandleMsg passed in with the execute message
-pub fn handle<S: Storage, A: Api, Q: Querier>(
-    deps: &mut Extern<S, A, Q>,
+/// * `deps` - DepsMut containing all the contract's external dependencies
+/// * `env`  - Env of contract's environment
+/// * `info` - Carries the info of who sent the message and how much native funds were sent along
+/// * `msg`  - HandleMsg passed in with the execute message
+#[entry_point]
+pub fn execute(
+    deps: DepsMut,
     env: Env,
-    msg: HandleMsg,
-) -> HandleResult {
+    info: MessageInfo,
+    msg: ExecuteMsg,
+) -> Result<Response, ContractError> {
     let response = match msg {
-        HandleMsg::CreateOffspring {
+        ExecuteMsg::CreateOffspring {
             label,
-            entropy,
             owner,
             count,
             description,
-        } => try_create_offspring(deps, env, label, entropy, owner, count, description),
-        HandleMsg::RegisterOffspring { owner, offspring } => {
-            try_register_offspring(deps, env, owner, &offspring)
-        }
-        HandleMsg::DeactivateOffspring { owner } => try_deactivate_offspring(deps, env, &owner),
-        HandleMsg::CreateViewingKey { entropy } => try_create_key(deps, env, entropy),
-        HandleMsg::SetViewingKey { key, .. } => try_set_key(deps, env, &key),
-        HandleMsg::NewOffspringContract {
+        } => try_create_offspring(deps, env, label, owner, count, description),
+        ExecuteMsg::DeactivateOffspring { owner } => try_deactivate_offspring(deps, info, owner),
+        ExecuteMsg::CreateViewingKey { entropy } => try_create_key(deps, env, info, entropy),
+        ExecuteMsg::SetViewingKey { key, .. } => try_set_key(deps, info, &key),
+        ExecuteMsg::NewOffspringContract {
             offspring_code_info,
-        } => try_new_contract(deps, env, offspring_code_info),
-        HandleMsg::SetStatus { stop } => try_set_status(deps, env, stop),
+        } => try_new_contract(deps, info, offspring_code_info),
+        ExecuteMsg::SetStatus { stop } => try_set_status(deps, info, stop),
     };
     pad_handle_result(response, BLOCK_SIZE)
 }
 
-/// Returns [u8;32]
-///
-/// generates new entropy from block data, does not save it to the contract.
-///
-/// # Arguments
-///
-/// * `env` - Env of contract's environment
-/// * `seed` - (user generated) seed for rng
-/// * `entropy` - Entropy seed saved in the contract
-pub fn new_entropy(env: &Env, seed: &[u8], entropy: &[u8]) -> [u8; 32] {
-    // 16 here represents the lengths in bytes of the block height and time.
-    let entropy_len = 16 + env.message.sender.len() + entropy.len();
-    let mut rng_entropy = Vec::with_capacity(entropy_len);
-    rng_entropy.extend_from_slice(&env.block.height.to_be_bytes());
-    rng_entropy.extend_from_slice(&env.block.time.to_be_bytes());
-    rng_entropy.extend_from_slice(&env.message.sender.0.as_bytes());
-    rng_entropy.extend_from_slice(entropy);
-
-    let mut rng = Prng::new(seed, &rng_entropy);
-
-    rng.rand_bytes()
-}
-
-/// Returns HandleResult
+/// Returns Result<Response, ContractError>
 ///
 /// create a new offspring
 ///
 /// # Arguments
 ///
-/// * `deps` - mutable reference to Extern containing all the contract's external dependencies
-/// * `env` - Env of contract's environment
-/// * `password` - String containing the password to give the offspring
-/// * `owner` - address of the owner associated to this offspring contract
-/// * `count` - the count for the counter template
+/// * `deps`        - DepsMut containing all the contract's external dependencies
+/// * `env`         - Env of contract's environment
+/// * `password`    - String containing the password to give the offspring
+/// * `owner`       - address of the owner associated to this offspring contract
+/// * `count`       - the count for the counter template
 /// * `description` - optional free-form text string owner may have used to describe the offspring
-#[allow(clippy::too_many_arguments)]
-fn try_create_offspring<S: Storage, A: Api, Q: Querier>(
-    deps: &mut Extern<S, A, Q>,
+fn try_create_offspring(
+    deps: DepsMut,
     env: Env,
     label: String,
-    entropy: String,
-    owner: HumanAddr,
+    owner: String,
     count: i32,
     description: Option<String>,
-) -> HandleResult {
-    if IS_STOPPED.load(&deps.storage)? {
-        return Err(StdError::generic_err(
-            "The factory has been stopped. No new offspring can be created",
-        ));
+) -> Result<Response, ContractError> {
+    if IS_STOPPED.load(deps.storage)? {
+        return Err(ContractError::Stopped {});
     }
 
+    let owner_addr = deps.api.addr_validate(&owner)?;
+
     let factory = ContractInfo {
-        code_hash: env.clone().contract_code_hash,
-        address: env.clone().contract.address,
+        code_hash: env.contract.code_hash,
+        address: env.contract.address,
     };
 
-    // generate and save new prng, and password. (we only register an offspring retuning the matching password)
-    let prng_seed: Vec<u8> = PRNG_SEED.load(&deps.storage)?;
-    let new_prng_bytes = new_entropy(&env, prng_seed.as_ref(), entropy.as_bytes());
-    PRNG_SEED.save(&mut deps.storage, &new_prng_bytes.to_vec())?;
-
-    // store the password for future authentication
-    let password = sha_256(&new_prng_bytes);
-    PENDING_PASSWORD.save(&mut deps.storage, &password)?;
-
-    let initmsg = OffspringInitMsg {
+    let initmsg = OffspringInstantiateMsg {
         factory,
         label: label.clone(),
-        password: password.clone(),
         owner,
         count,
         description,
     };
 
-    let offspring_code = OFFSPRING_CODE.load(&deps.storage)?;
-    let cosmosmsg = initmsg.to_cosmos_msg(
+    let offspring_code = OFFSPRING_CODE.load(deps.storage)?;
+    let init_cosmos_msg = CosmosMsg::Wasm(WasmMsg::Instantiate {
+        code_id: offspring_code.code_id,
+        code_hash: offspring_code.code_hash,
+        msg: to_binary(&initmsg)?,
+        funds: vec![],
         label,
-        offspring_code.code_id,
-        offspring_code.code_hash,
-        None,
-    )?;
+    });
+    let init_submsg = SubMsg::reply_always(init_cosmos_msg, OFFSPRING_INSTANTIATE_REPLY_ID);
 
-    Ok(HandleResponse {
-        messages: vec![cosmosmsg],
-        log: vec![],
-        data: Some(to_binary(&HandleAnswer::Status {
-            status: ResponseStatus::Success,
-            message: None,
-        })?),
-    })
+    Ok(Response::new().add_submessage(init_submsg))
 }
 
-/// Returns HandleResult
-///
-/// Registers the calling offspring by saving its info and adding it to the appropriate lists
-///
-/// # Arguments
-///
-/// * `deps` - mutable reference to Extern containing all the contract's external dependencies
-/// * `env` - Env of contract's environment
-/// * `owner` - reference to the address of the offspring's owner
-/// * `reg_offspring` - reference to RegisterOffspringInfo of the offspring that is trying to register
-fn try_register_offspring<S: Storage, A: Api, Q: Querier>(
-    deps: &mut Extern<S, A, Q>,
-    env: Env,
-    owner: HumanAddr,
-    reg_offspring: &RegisterOffspringInfo,
-) -> HandleResult {
-    // verify this is the offspring we are waiting for
-    let load_password: Option<[u8; 32]> = PENDING_PASSWORD.may_load(&deps.storage)?;
-    let auth_password = load_password
-        .ok_or_else(|| StdError::generic_err("Unable to authenticate registration."))?;
-    if auth_password != reg_offspring.password {
-        return Err(StdError::generic_err(
-            "password does not match the offspring we are creating",
-        ));
-    }
-    PENDING_PASSWORD.remove(&mut deps.storage);
-
-    // convert register offspring info to storage format
-    let offspring_code_info = OFFSPRING_CODE.load(&deps.storage)?;
-    let offspring_info = offspring_code_info.to_contract_info(env.message.sender.clone());
-    let offspring = reg_offspring.to_store_offspring_info(offspring_info.clone());
-
-    // save the offspring info
-    OFFSPRING_STORAGE.insert(&mut deps.storage, &offspring_info.address, offspring)?;
-
-    // add active list
-    ACTIVE_STORE.insert(&mut deps.storage, &offspring_info.address, true)?;
-    // add to owner's active list
-    OWNERS_ACTIVE
-        .add_suffix(owner.to_string().as_bytes())
-        .insert(&mut deps.storage, &offspring_info.address, true)?;
-
-    Ok(HandleResponse {
-        messages: vec![],
-        log: vec![log("offspring_address", env.message.sender)],
-        data: None,
-    })
-}
-
-/// Returns HandleResult
+/// Returns Result<Response, ContractError>
 ///
 /// deactivates the offspring by saving its info and adding/removing it to/from the
 /// appropriate lists
 ///
 /// # Arguments
 ///
-/// * `deps` - mutable reference to Extern containing all the contract's external dependencies
-/// * `env` - Env of contract's environment
-/// * `owner` - offspring's owner
-fn try_deactivate_offspring<S: Storage, A: Api, Q: Querier>(
-    deps: &mut Extern<S, A, Q>,
-    env: Env,
-    owner: &HumanAddr,
-) -> HandleResult {
-    let offspring_addr = &env.message.sender;
+/// * `deps`  - DepsMut containing all the contract's external dependencies
+/// * `info`  - Carries the info of who sent the message and how much native funds were sent along
+/// * `owner` - Addr of offspring's owner
+fn try_deactivate_offspring(
+    deps: DepsMut,
+    info: MessageInfo,
+    owner: Addr,
+) -> Result<Response, ContractError> {
+    let offspring_addr = &info.sender;
 
     // verify offspring is in active list
     let is_active = ACTIVE_STORE
-        .get(&deps.storage, offspring_addr)
+        .get(deps.storage, offspring_addr)
         .unwrap_or(false);
     if !is_active {
-        return Err(StdError::generic_err(
-            "This offspring is already not active",
-        ));
+        return Err(ContractError::CustomError {
+            val: "This offspring is already not active".to_string(),
+        });
     }
 
     // remove from active
-    ACTIVE_STORE.remove(&mut deps.storage, offspring_addr)?;
+    ACTIVE_STORE.remove(deps.storage, offspring_addr)?;
 
     // save to inactive
-    INACTIVE_STORE.insert(&mut deps.storage, offspring_addr, true)?;
+    INACTIVE_STORE.insert(deps.storage, offspring_addr, &true)?;
 
     // remove from owner's active
     OWNERS_ACTIVE
         .add_suffix(owner.to_string().as_bytes())
-        .remove(&mut deps.storage, offspring_addr)?;
+        .remove(deps.storage, offspring_addr)?;
 
     // save to owner's inactive
     OWNERS_INACTIVE
         .add_suffix(owner.to_string().as_bytes())
-        .insert(&mut deps.storage, offspring_addr, true)?;
+        .insert(deps.storage, offspring_addr, &true)?;
 
-    Ok(HandleResponse {
-        messages: vec![],
-        log: vec![],
-        data: None,
-    })
+    Ok(Response::new())
 }
 
-/// Returns HandleResult
+/// Returns Result<Response, ContractError>
 ///
 /// allows admin to edit the offspring contract version.
 ///
 /// # Arguments
 ///
-/// * `deps` - mutable reference to Extern containing all the contract's external dependencies
-/// * `env` - Env of contract's environment
+/// * `deps`                - DepsMut containing all the contract's external dependencies
+/// * `info`                - Carries the info of who sent the message and how much native funds were sent along
 /// * `offspring_code_info` - CodeInfo of the new offspring version
-fn try_new_contract<S: Storage, A: Api, Q: Querier>(
-    deps: &mut Extern<S, A, Q>,
-    env: Env,
+fn try_new_contract(
+    deps: DepsMut,
+    info: MessageInfo,
     offspring_code_info: CodeInfo,
-) -> HandleResult {
+) -> Result<Response, ContractError> {
     // only allow admin to do this
-    let sender = env.message.sender;
-    if ADMIN.load(&deps.storage)? != sender {
-        return Err(StdError::generic_err(
-            "This is an admin command. Admin commands can only be run from admin address",
-        ));
+    let sender = info.sender;
+    if ADMIN.load(deps.storage)? != sender {
+        return Err(ContractError::Unauthorized {});
     }
-    OFFSPRING_CODE.save(&mut deps.storage, &offspring_code_info)?;
+    OFFSPRING_CODE.save(deps.storage, &offspring_code_info)?;
 
-    Ok(HandleResponse {
-        messages: vec![],
-        log: vec![],
-        data: Some(to_binary(&HandleAnswer::Status {
-            status: ResponseStatus::Success,
-            message: None,
-        })?),
-    })
+    let resp_data = to_binary(&HandleAnswer::Status {
+        status: ResponseStatus::Success,
+        message: None,
+    })?;
+    Ok(Response::new().set_data(resp_data))
 }
 
-/// Returns HandleResult
+/// Returns Result<Response, ContractError>
 ///
 /// allows admin to change the factory status to (dis)allow the creation of new offspring
 ///
 /// # Arguments
 ///
-/// * `deps` - mutable reference to Extern containing all the contract's external dependencies
-/// * `env` - Env of contract's environment
+/// * `deps` - DepsMut containing all the contract's external dependencies
+/// * `info` - Carries the info of who sent the message and how much native funds were sent along
 /// * `stop` - true if the factory should disallow offspring creation
-fn try_set_status<S: Storage, A: Api, Q: Querier>(
-    deps: &mut Extern<S, A, Q>,
-    env: Env,
-    stop: bool,
-) -> HandleResult {
+fn try_set_status(deps: DepsMut, info: MessageInfo, stop: bool) -> Result<Response, ContractError> {
     // only allow admin to do this
-    let sender = env.message.sender;
-    if ADMIN.load(&deps.storage)? != sender {
-        return Err(StdError::generic_err(
-            "This is an admin command. Admin commands can only be run from admin address",
-        ));
+    let sender = info.sender;
+    if ADMIN.load(deps.storage)? != sender {
+        return Err(ContractError::Unauthorized {});
     }
-    IS_STOPPED.save(&mut deps.storage, &stop)?;
+    IS_STOPPED.save(deps.storage, &stop)?;
 
-    Ok(HandleResponse {
-        messages: vec![],
-        log: vec![],
-        data: Some(to_binary(&HandleAnswer::Status {
-            status: ResponseStatus::Success,
-            message: None,
-        })?),
-    })
+    let resp_data = to_binary(&HandleAnswer::Status {
+        status: ResponseStatus::Success,
+        message: None,
+    })?;
+    Ok(Response::new().set_data(resp_data))
 }
 
-/// Returns HandleResult
+/// Returns Result<Response, ContractError>
 ///
 /// create a viewing key
 ///
 /// # Arguments
 ///
-/// * `deps` - mutable reference to Extern containing all the contract's external dependencies
-/// * `env` - Env of contract's environment
+/// * `deps`    - DepsMut containing all the contract's external dependencies
+/// * `env`     - Env of contract's environment
+/// * `info`    - Carries the info of who sent the message and how much native funds were sent along
 /// * `entropy` - string to be used as an entropy source for randomization
-fn try_create_key<S: Storage, A: Api, Q: Querier>(
-    deps: &mut Extern<S, A, Q>,
+fn try_create_key(
+    deps: DepsMut,
     env: Env,
+    info: MessageInfo,
     entropy: String,
-) -> HandleResult {
+) -> Result<Response, ContractError> {
     let key = ViewingKey::create(
-        &mut deps.storage,
+        deps.storage,
+        &info,
         &env,
-        &env.message.sender,
+        info.sender.as_str(),
         entropy.as_bytes(),
     );
 
-    Ok(HandleResponse {
-        messages: vec![],
-        log: vec![],
-        data: Some(to_binary(&HandleAnswer::ViewingKey {
-            key: format!("{}", key),
-        })?),
-    })
+    Ok(Response::new().add_attribute("viewing_key", key))
 }
 
-/// Returns HandleResult
+/// Returns Result<Response, ContractError>
 ///
 /// sets the viewing key
 ///
 /// # Arguments
 ///
-/// * `deps` - mutable reference to Extern containing all the contract's external dependencies
-/// * `env` - Env of contract's environment
-/// * `key` - string slice to be used as the viewing key
-fn try_set_key<S: Storage, A: Api, Q: Querier>(
-    deps: &mut Extern<S, A, Q>,
-    env: Env,
-    key: &str,
-) -> HandleResult {
-    ViewingKey::set(&mut deps.storage, &env.message.sender, key);
+/// * `deps` - DepsMut containing all the contract's external dependencies
+/// * `info` - Carries the info of who sent the message and how much native funds were sent along
+/// * `key`  - string slice to be used as the viewing key
+fn try_set_key(deps: DepsMut, info: MessageInfo, key: &str) -> Result<Response, ContractError> {
+    ViewingKey::set(deps.storage, info.sender.as_str(), key);
 
-    Ok(HandleResponse {
-        messages: vec![],
-        log: vec![],
-        data: Some(to_binary(&HandleAnswer::ViewingKey {
-            key: key.to_string(),
-        })?),
-    })
+    Ok(Response::new().add_attribute("viewing_key", key))
 }
 
 /////////////////////////////////////// Query /////////////////////////////////////
-/// Returns QueryResult
+/// Returns Result<Response, ContractError>
 ///
 /// # Arguments
 ///
-/// * `deps` - reference to Extern containing all the contract's external dependencies
+/// * `deps` - DepsMut containing all the contract's external dependencies
 /// * `msg` - QueryMsg passed in with the query call
-pub fn query<S: Storage, A: Api, Q: Querier>(deps: &Extern<S, A, Q>, msg: QueryMsg) -> QueryResult {
+#[entry_point]
+pub fn reply(deps: DepsMut, _env: Env, msg: Reply) -> Result<Response, ContractError> {
+    match msg.id {
+        OFFSPRING_INSTANTIATE_REPLY_ID => handle_instantiate_reply(deps, msg),
+        id => Err(ContractError::UnexpectedReplyId { id }),
+    }
+}
+
+fn handle_instantiate_reply(deps: DepsMut, msg: Reply) -> Result<Response, ContractError> {
+    // The parsing process below can be handled easier if one imports cw-plus
+    // See: https://github.com/CosmWasm/cw-plus/blob/main/packages/utils/src/parse_reply.rs
+    match msg.result {
+        SubMsgResult::Ok(s) => match s.data {
+            Some(bin) => {
+                let reply_info: ReplyOffspringInfo = from_binary(&bin)?;
+                register_offspring_impl(deps, reply_info)
+            }
+            None => Err(ContractError::CustomError {
+                val: "Init didn't response with contract address".to_string(),
+            }),
+        },
+        SubMsgResult::Err(e) => Err(ContractError::CustomError { val: e }),
+    }
+}
+
+/// Returns Result<Response, ContractError>
+///
+/// Registers the calling offspring by saving its info and adding it to the appropriate lists
+///
+/// # Arguments
+///
+/// * `deps`       - DepsMut containing all the contract's external dependencies
+/// * `reply_info` - reference to ReplyOffspringInfo of the offspring that is trying to register
+fn register_offspring_impl(
+    deps: DepsMut,
+    reply_info: ReplyOffspringInfo,
+) -> Result<Response, ContractError> {
+    // convert register offspring info to storage format
+    let offspring = reply_info.to_store_offspring_info();
+
+    // save the offspring info
+    OFFSPRING_STORAGE.insert(deps.storage, &reply_info.address, &offspring)?;
+
+    // add active list
+    ACTIVE_STORE.insert(deps.storage, &reply_info.address, &true)?;
+    // add to owner's active list
+    OWNERS_ACTIVE
+        .add_suffix(reply_info.owner.to_string().as_bytes())
+        .insert(deps.storage, &reply_info.address, &true)?;
+
+    Ok(Response::new().add_attribute("offspring_address", &reply_info.address))
+}
+
+/////////////////////////////////////// Query /////////////////////////////////////
+/// Returns Result<Binary, ContractError>
+///
+/// # Arguments
+///
+/// * `deps` - Deps containing all the contract's external dependencies
+/// * `_env` - Env of contract's environment
+/// * `msg`  - QueryMsg passed in with the query call
+#[entry_point]
+pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> Result<Binary, ContractError> {
     let response = match msg {
         QueryMsg::ListMyOffspring {
             address,
@@ -428,80 +370,81 @@ pub fn query<S: Storage, A: Api, Q: Querier>(deps: &Extern<S, A, Q>, msg: QueryM
     pad_query_result(response, BLOCK_SIZE)
 }
 
-/// Returns QueryResult indicating whether the address/key pair is valid
+/// Returns StdResult<Binary> indicating whether the address/key pair is valid
 ///
 /// # Arguments
 ///
-/// * `deps` - reference to Extern containing all the contract's external dependencies
-/// * `address` - a reference to the address whose key should be validated
+/// * `deps`        - Deps containing all the contract's external dependencies
+/// * `address`     - a reference to the address whose key should be validated
 /// * `viewing_key` - String key used for authentication
-fn try_validate_key<S: Storage, A: Api, Q: Querier>(
-    deps: &Extern<S, A, Q>,
-    address: &HumanAddr,
+fn try_validate_key(
+    deps: Deps,
+    address: &str,
     viewing_key: String,
-) -> QueryResult {
-    to_binary(&QueryAnswer::IsKeyValid {
-        is_valid: is_key_valid(&deps.storage, address, viewing_key),
-    })
+) -> Result<Binary, ContractError> {
+    Ok(to_binary(&QueryAnswer::IsKeyValid {
+        is_valid: is_key_valid(deps.storage, address, viewing_key),
+    })?)
 }
 
-/// Returns QueryResult listing the active offspring
+/// Returns Result<Binary, ContractError> listing the active offspring
 ///
 /// # Arguments
 ///
-/// * `deps` - reference to Extern containing all the contract's external dependencies
+/// * `deps`       - Deps containing all the contract's external dependencies
 /// * `start_page` - optional start page for the offsprings returned and listed
-/// * `page_size` - optional number of offspring to return in this page
-fn try_list_active<S: Storage, A: Api, Q: Querier>(
-    deps: &Extern<S, A, Q>,
+/// * `page_size`  - optional number of offspring to return in this page
+fn try_list_active(
+    deps: Deps,
     start_page: Option<u32>,
     page_size: Option<u32>,
-) -> QueryResult {
-    to_binary(&QueryAnswer::ListActiveOffspring {
+) -> Result<Binary, ContractError> {
+    Ok(to_binary(&QueryAnswer::ListActiveOffspring {
         active: display_active_or_inactive_list(
-            &deps.storage,
+            deps.storage,
             None,
             FilterTypes::Active,
             start_page,
             page_size,
         )?,
-    })
+    })?)
 }
 
 /// Returns bool result of validating an address' viewing key
 ///
 /// # Arguments
 ///
-/// * `storage` - a reference to the contract's storage
-/// * `address` - a reference to the address whose key should be validated
+/// * `storage`     - a reference to the contract's storage
+/// * `account`     - a reference to the str whose key should be validated
 /// * `viewing_key` - String key used for authentication
-fn is_key_valid<S: ReadonlyStorage>(storage: &S, address: &HumanAddr, viewing_key: String) -> bool {
-    return ViewingKey::check(storage, address, &viewing_key).is_ok();
+fn is_key_valid(storage: &dyn Storage, account: &str, viewing_key: String) -> bool {
+    ViewingKey::check(storage, account, &viewing_key).is_ok()
 }
 
-/// Returns QueryResult listing the offspring with the address as its owner
+/// Returns Result<Binary, ContractError> listing the offspring with the address as its owner
 ///
 /// # Arguments
 ///
-/// * `deps` - reference to Extern containing all the contract's external dependencies
-/// * `address` - a reference to the address whose offspring should be listed
+/// * `deps`        - Deps containing all the contract's external dependencies
+/// * `address`     - String address whose offspring should be listed
 /// * `viewing_key` - String key used to authenticate the query
-/// * `filter` - optional choice of display filters
-/// * `start_page` - optional start page for the offsprings returned and listed
-/// * `page_size` - optional number of offspring to return in this page
-fn try_list_my<S: Storage, A: Api, Q: Querier>(
-    deps: &Extern<S, A, Q>,
-    address: HumanAddr,
+/// * `filter`      - optional choice of display filters
+/// * `start_page`  - optional start page for the offsprings returned and listed
+/// * `page_size`   - optional number of offspring to return in this page
+fn try_list_my(
+    deps: Deps,
+    address: String,
     viewing_key: String,
     filter: Option<FilterTypes>,
     start_page: Option<u32>,
     page_size: Option<u32>,
-) -> QueryResult {
+) -> Result<Binary, ContractError> {
+    let address = deps.api.addr_validate(&address)?;
     // if key matches
-    if !is_key_valid(&deps.storage, &address, viewing_key) {
-        return to_binary(&QueryAnswer::ViewingKeyError {
+    if !is_key_valid(deps.storage, address.as_str(), viewing_key) {
+        return Ok(to_binary(&QueryAnswer::ViewingKeyError {
             error: "Wrong viewing key for this address or viewing key not set".to_string(),
-        });
+        })?);
     }
     let mut active_list: Option<Vec<StoreOffspringInfo>> = None;
     let mut inactive_list: Option<Vec<StoreOffspringInfo>> = None;
@@ -511,7 +454,7 @@ fn try_list_my<S: Storage, A: Api, Q: Querier>(
     // list the active offspring
     if types == FilterTypes::Active || types == FilterTypes::All {
         active_list = Some(display_active_or_inactive_list(
-            &deps.storage,
+            deps.storage,
             Some(address.clone()),
             FilterTypes::Active,
             start_page,
@@ -521,7 +464,7 @@ fn try_list_my<S: Storage, A: Api, Q: Querier>(
     // list the inactive offspring
     if types == FilterTypes::Inactive || types == FilterTypes::All {
         inactive_list = Some(display_active_or_inactive_list(
-            &deps.storage,
+            deps.storage,
             Some(address),
             FilterTypes::Inactive,
             start_page,
@@ -529,37 +472,37 @@ fn try_list_my<S: Storage, A: Api, Q: Querier>(
         )?);
     }
 
-    return to_binary(&QueryAnswer::ListMyOffspring {
+    Ok(to_binary(&QueryAnswer::ListMyOffspring {
         active: active_list,
         inactive: inactive_list,
-    });
+    })?)
 }
 
-/// Returns StdResult<Vec<StoreOffspringInfo>>
+/// Returns Result<Vec<StoreOffspringInfo>, ContractError>
 ///
 /// provide the appropriate list of active/inactive offspring
 ///
 /// # Arguments
 ///
-/// * `storage` - a reference to the contract's storage
-/// * `owner` - optional owner only whose offspring are listed. If none, then we list all active/inactive
-/// * `filter` - Specify whether you want active or inactive offspring to be listed
+/// * `storage`    - a reference to the contract's storage
+/// * `owner`      - optional owner only whose offspring are listed. If none, then we list all active/inactive
+/// * `filter`     - Specify whether you want active or inactive offspring to be listed
 /// * `start_page` - optional start page for the offsprings returned and listed
-/// * `page_size` - optional number of offspring to return in this page
-fn display_active_or_inactive_list<S: ReadonlyStorage>(
-    storage: &S,
-    owner: Option<HumanAddr>,
+/// * `page_size`  - optional number of offspring to return in this page
+fn display_active_or_inactive_list(
+    storage: &dyn Storage,
+    owner: Option<Addr>,
     filter: FilterTypes,
     start_page: Option<u32>,
     page_size: Option<u32>,
-) -> StdResult<Vec<StoreOffspringInfo>> {
+) -> Result<Vec<StoreOffspringInfo>, ContractError> {
     let start_page = start_page.unwrap_or(0);
     let size = page_size.unwrap_or(DEFAULT_PAGE_SIZE);
     let mut list: Vec<StoreOffspringInfo> = vec![];
 
-    let keymap: &Keymap<HumanAddr, bool>;
-    let owners_active_store: Keymap<HumanAddr, bool>;
-    let owners_inactive_store: Keymap<HumanAddr, bool>;
+    let keymap: &Keymap<Addr, bool>;
+    let owners_active_store: Keymap<Addr, bool>;
+    let owners_inactive_store: Keymap<Addr, bool>;
     match filter {
         FilterTypes::Active => {
             if let Some(owner_addr) = owner {
@@ -579,9 +522,9 @@ fn display_active_or_inactive_list<S: ReadonlyStorage>(
             }
         }
         FilterTypes::All => {
-            return Err(StdError::generic_err(
-                "Please select one of active or inactive offspring to list.",
-            ));
+            return Err(ContractError::CustomError {
+                val: "Please select one of active or inactive offspring to list.".to_string(),
+            });
         }
     }
 
@@ -597,9 +540,9 @@ fn display_active_or_inactive_list<S: ReadonlyStorage>(
             let offspring_info =
                 OFFSPRING_STORAGE
                     .get(storage, &contract_addr)
-                    .ok_or(StdError::generic_err(
-                        "Error occurred while loading offspring data",
-                    ))?;
+                    .ok_or_else(|| ContractError::CustomError {
+                        val: "Error occurred while loading offspring data".to_string(),
+                    })?;
             list.push(offspring_info);
         } else {
             break;
@@ -609,25 +552,25 @@ fn display_active_or_inactive_list<S: ReadonlyStorage>(
     Ok(list)
 }
 
-/// Returns QueryResult listing the inactive offspring
+/// Returns Result<Binary, ContractError> listing the inactive offspring
 ///
 /// # Arguments
 ///
-/// * `deps` - reference to Extern containing all the contract's external dependencies
+/// * `deps`       - Deps containing all the contract's external dependencies
 /// * `start_page` - optional start page for the offsprings returned and listed
-/// * `page_size` - optional number of offspring to display
-fn try_list_inactive<S: Storage, A: Api, Q: Querier>(
-    deps: &Extern<S, A, Q>,
+/// * `page_size`  - optional number of offspring to display
+fn try_list_inactive(
+    deps: Deps,
     start_page: Option<u32>,
     page_size: Option<u32>,
-) -> QueryResult {
-    to_binary(&QueryAnswer::ListInactiveOffspring {
+) -> Result<Binary, ContractError> {
+    Ok(to_binary(&QueryAnswer::ListInactiveOffspring {
         inactive: display_active_or_inactive_list(
-            &deps.storage,
+            deps.storage,
             None,
             FilterTypes::Inactive,
             start_page,
             page_size,
         )?,
-    })
+    })?)
 }

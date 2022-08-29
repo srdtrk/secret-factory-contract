@@ -2,7 +2,7 @@
   "$schema": "http://json-schema.org/draft-07/schema#",
   "title": "QueryMsg",
   "description": "Queries",
-  "anyOf": [
+  "oneOf": [
     {
       "description": "lists all offspring whose owner is the given address.",
       "type": "object",
@@ -18,7 +18,7 @@
           ],
           "properties": {
             "address": {
-              "$ref": "#/definitions/HumanAddr"
+              "type": "string"
             },
             "filter": {
               "description": "optional filter for only active or inactive offspring.  If not specified, lists all",
@@ -58,7 +58,8 @@
             }
           }
         }
-      }
+      },
+      "additionalProperties": false
     },
     {
       "description": "lists all active offspring in reverse chronological order",
@@ -92,7 +93,8 @@
             }
           }
         }
-      }
+      },
+      "additionalProperties": false
     },
     {
       "description": "lists inactive offspring in reverse chronological order.",
@@ -126,7 +128,8 @@
             }
           }
         }
-      }
+      },
+      "additionalProperties": false
     },
     {
       "description": "authenticates the supplied address/viewing key. This should be called by offspring.",
@@ -144,11 +147,7 @@
           "properties": {
             "address": {
               "description": "address whose viewing key is being authenticated",
-              "allOf": [
-                {
-                  "$ref": "#/definitions/HumanAddr"
-                }
-              ]
+              "type": "string"
             },
             "viewing_key": {
               "description": "viewing key",
@@ -156,7 +155,8 @@
             }
           }
         }
-      }
+      },
+      "additionalProperties": false
     }
   ],
   "definitions": {
@@ -168,9 +168,6 @@
         "inactive",
         "all"
       ]
-    },
-    "HumanAddr": {
-      "type": "string"
     }
   }
 }
