@@ -2,14 +2,16 @@ use cosmwasm_std::{
     entry_point, to_binary, Addr, Binary, Deps, DepsMut, Env, MessageInfo, Response, StdError,
     StdResult, Storage,
 };
-use secret_toolkit::utils::{HandleCallback, Query};
+use secret_toolkit::utils::{pad_handle_result, pad_query_result, HandleCallback, Query};
 
 use crate::error::ContractError;
 use crate::factory_msg::{
     FactoryExecuteMsg, FactoryOffspringInfo, FactoryQueryMsg, IsKeyValidWrapper,
 };
 use crate::msg::{ExecuteMsg, InstantiateMsg, QueryAnswer, QueryMsg};
-use crate::state::{State, CONTRACT_ADDR, FACTORY_INFO, IS_ACTIVE, OWNER, PASSWORD, STATE};
+use crate::state::{
+    State, BLOCK_SIZE, CONTRACT_ADDR, FACTORY_INFO, IS_ACTIVE, OWNER, PASSWORD, STATE,
+};
 
 ////////////////////////////////////// Init ///////////////////////////////////////
 /// Returns InitResult
@@ -77,11 +79,12 @@ pub fn execute(
     info: MessageInfo,
     msg: ExecuteMsg,
 ) -> Result<Response, ContractError> {
-    match msg {
+    let res = match msg {
         ExecuteMsg::Increment {} => try_increment(deps),
         ExecuteMsg::Reset { count } => try_reset(deps, info, count),
         ExecuteMsg::Deactivate {} => try_deactivate(deps, info),
-    }
+    };
+    pad_handle_result(res, BLOCK_SIZE)
 }
 
 /// Returns Result<Response, ContractError>
@@ -159,12 +162,13 @@ pub fn try_reset(deps: DepsMut, info: MessageInfo, count: i32) -> Result<Respons
 /// * `msg`  - QueryMsg passed in with the query call
 #[entry_point]
 pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
-    match msg {
+    let res = match msg {
         QueryMsg::GetCount {
             address,
             viewing_key,
         } => to_binary(&query_count(deps, address, viewing_key)?),
-    }
+    };
+    pad_query_result(res, BLOCK_SIZE)
 }
 
 /// Returns StdResult<CountResponse> displaying the count.
