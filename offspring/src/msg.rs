@@ -11,7 +11,7 @@ pub struct InstantiateMsg {
     /// Optional text description of this offspring
     pub description: Option<String>,
 
-    pub owner: String,
+    pub owner: Addr,
     pub count: i32,
 }
 

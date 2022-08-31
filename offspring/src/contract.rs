@@ -8,7 +8,7 @@ use crate::factory_msg::{
     FactoryExecuteMsg, FactoryOffspringInfo, FactoryQueryMsg, IsKeyValidWrapper,
 };
 use crate::msg::{ExecuteMsg, InstantiateMsg, QueryAnswer, QueryMsg};
-use crate::state::{State, CONTRACT_ADDR, FACTORY_INFO, IS_ACTIVE, OWNER, STATE};
+use crate::state::{State, FACTORY_INFO, IS_ACTIVE, OWNER, STATE};
 
 ////////////////////////////////////// Init ///////////////////////////////////////
 /// Returns Result<Response, ContractError>
@@ -28,13 +28,8 @@ pub fn instantiate(
     _info: MessageInfo,
     msg: InstantiateMsg,
 ) -> Result<Response, ContractError> {
-    return Err(ContractError::CustomError {
-        val: "debug1".to_string(),
-    });
     FACTORY_INFO.save(deps.storage, &msg.factory)?;
-    let owner_addr = deps.api.addr_validate(&msg.owner)?;
-    OWNER.save(deps.storage, &owner_addr)?;
-    CONTRACT_ADDR.save(deps.storage, &env.contract.address)?;
+    OWNER.save(deps.storage, &msg.owner)?;
     IS_ACTIVE.save(deps.storage, &true)?;
 
     let state = State {
@@ -47,7 +42,7 @@ pub fn instantiate(
     // perform register callback to factory
     let offspring_info = FactoryOffspringInfo {
         label: msg.label,
-        owner: owner_addr,
+        owner: msg.owner,
         address: env.contract.address,
         code_hash: env.contract.code_hash,
     };

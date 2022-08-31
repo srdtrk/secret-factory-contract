@@ -505,7 +505,7 @@ dependencies = [
 [[package]]
 name = "secret-toolkit"
 version = "0.4.0"
-source = "git+https://github.com/srdtrk/secret-toolkit/?branch=cw-v1.0-storage#281297f4e5cb7892a2ec6786d51c0ea9687d7119"
+source = "git+https://github.com/scrtlabs/secret-toolkit/?branch=cosmwasm-v1.0#8448c2a993e8e4ce48955eb7196fa20e93717d97"
 dependencies = [
  "secret-toolkit-serialization",
  "secret-toolkit-storage",
@@ -516,7 +516,7 @@ dependencies = [
 [[package]]
 name = "secret-toolkit-crypto"
 version = "0.3.0"
-source = "git+https://github.com/srdtrk/secret-toolkit/?branch=cw-v1.0-storage#281297f4e5cb7892a2ec6786d51c0ea9687d7119"
+source = "git+https://github.com/scrtlabs/secret-toolkit/?branch=cosmwasm-v1.0#8448c2a993e8e4ce48955eb7196fa20e93717d97"
 dependencies = [
  "cosmwasm-std",
  "rand_chacha",
@@ -527,7 +527,7 @@ dependencies = [
 [[package]]
 name = "secret-toolkit-serialization"
 version = "0.3.0"
-source = "git+https://github.com/srdtrk/secret-toolkit/?branch=cw-v1.0-storage#281297f4e5cb7892a2ec6786d51c0ea9687d7119"
+source = "git+https://github.com/scrtlabs/secret-toolkit/?branch=cosmwasm-v1.0#8448c2a993e8e4ce48955eb7196fa20e93717d97"
 dependencies = [
  "bincode2",
  "cosmwasm-std",
@@ -538,7 +538,7 @@ dependencies = [
 [[package]]
 name = "secret-toolkit-storage"
 version = "0.4.1"
-source = "git+https://github.com/srdtrk/secret-toolkit/?branch=cw-v1.0-storage#281297f4e5cb7892a2ec6786d51c0ea9687d7119"
+source = "git+https://github.com/scrtlabs/secret-toolkit/?branch=cosmwasm-v1.0#8448c2a993e8e4ce48955eb7196fa20e93717d97"
 dependencies = [
  "cosmwasm-std",
  "cosmwasm-storage",
@@ -549,7 +549,7 @@ dependencies = [
 [[package]]
 name = "secret-toolkit-utils"
 version = "0.3.1"
-source = "git+https://github.com/srdtrk/secret-toolkit/?branch=cw-v1.0-storage#281297f4e5cb7892a2ec6786d51c0ea9687d7119"
+source = "git+https://github.com/scrtlabs/secret-toolkit/?branch=cosmwasm-v1.0#8448c2a993e8e4ce48955eb7196fa20e93717d97"
 dependencies = [
  "cosmwasm-std",
  "cosmwasm-storage",
@@ -560,7 +560,7 @@ dependencies = [
 [[package]]
 name = "secret-toolkit-viewing-key"
 version = "0.3.0"
-source = "git+https://github.com/srdtrk/secret-toolkit/?branch=cw-v1.0-storage#281297f4e5cb7892a2ec6786d51c0ea9687d7119"
+source = "git+https://github.com/scrtlabs/secret-toolkit/?branch=cosmwasm-v1.0#8448c2a993e8e4ce48955eb7196fa20e93717d97"
 dependencies = [
  "base64 0.11.0",
  "cosmwasm-std",

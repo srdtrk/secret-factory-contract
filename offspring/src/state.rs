@@ -14,8 +14,6 @@ pub const BLOCK_SIZE: usize = 256;
 pub const FACTORY_INFO: Item<ContractInfo> = Item::new(b"factory_info");
 /// address of the owner associated to this offspring contract
 pub const OWNER: Item<Addr> = Item::new(b"owner");
-/// address of this offspring contract
-pub const CONTRACT_ADDR: Item<Addr> = Item::new(b"contract_addr");
 /// stores whether or not the contract is still active
 pub const IS_ACTIVE: Item<bool> = Item::new(b"active");
 /// used to store the state of this template contract

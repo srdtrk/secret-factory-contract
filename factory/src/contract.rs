@@ -1,6 +1,6 @@
 use cosmwasm_std::{
-    entry_point, from_binary, to_binary, Addr, Binary, CosmosMsg, Deps, DepsMut, Env, MessageInfo,
-    Reply, Response, Storage, SubMsg, SubMsgResult, WasmMsg,
+    entry_point, from_binary, to_binary, Addr, Binary, Deps, DepsMut, Env, MessageInfo, Reply,
+    Response, Storage, SubMsg, SubMsgResult,
 };
 
 use secret_toolkit::utils::{pad_handle_result, pad_query_result, InitCallback};
@@ -118,12 +118,14 @@ fn try_create_offspring(
     let initmsg = OffspringInstantiateMsg {
         factory,
         label: label.clone(),
-        owner,
+        owner: owner_addr,
         count,
         description,
     };
 
     let offspring_code = OFFSPRING_CODE.load(deps.storage)?;
+    // You can instead turn initmsg into a Cosmos message doing the following:
+    /*
     let init_cosmos_msg = CosmosMsg::Wasm(WasmMsg::Instantiate {
         code_id: offspring_code.code_id,
         code_hash: offspring_code.code_hash,
@@ -131,7 +133,16 @@ fn try_create_offspring(
         funds: vec![],
         label,
     });
-    let init_submsg = SubMsg::reply_always(init_cosmos_msg, OFFSPRING_INSTANTIATE_REPLY_ID);
+    */
+    let init_submsg = SubMsg::reply_always(
+        initmsg.to_cosmos_msg(
+            label,
+            offspring_code.code_id,
+            offspring_code.code_hash,
+            None,
+        )?,
+        OFFSPRING_INSTANTIATE_REPLY_ID,
+    );
 
     Ok(Response::new().add_submessage(init_submsg))
 }

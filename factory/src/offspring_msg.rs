@@ -15,7 +15,7 @@ pub struct OffspringInstantiateMsg {
     #[serde(default)]
     pub description: Option<String>,
 
-    pub owner: String,
+    pub owner: Addr,
     pub count: i32,
 }
 
