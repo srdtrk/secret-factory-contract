@@ -1,16 +1,16 @@
 # **Secret Factory Contract Template** #
 
+This is a Secret contract written in Cosmwasm 1.0 making use of secret-toolkit's cosmwasm 1.0 branch, making use of some secret specific features such as viewing keys. The code is tested under local secret.
+
 Factory contracts are useful for scaling your web3 app when you need to create new contract instances for various reasons such as launching new games, attaching application specific state to each of your users, etc...
 
 This repo contains two template contracts. The factory contract template is responsible for creating offspring contracts, storing them, and listing them in queries. The factory contract also stores the viewing key of the users so that a user does not need to create multiple viewing keys for each individual offspring they interract with.
-
-This contract makes use of the incubator feature Cashmaps for listing and paging mechanics in factory queries.
 
 ## **About the Contracts** ##
 
 The offspring contract is based on the [simple counter template](https://github.com/scrtlabs/secret-template) that everyone should be familiar with. Some additional features were added to it to make it a suitable offspring contract for a factory and use most up to date storage methods.
 
-The factory registers the offsprings it creates. In order for an offspring to be initialized and registered in the factory, the factory is the one that must be initializing the offspring contract. The registration of the offspring contract is done by a post init callback which carries with it a password to ensure that offspring contracts not initialized by the factory cannot be registered.
+The factory registers the offsprings it creates. In order for an offspring to be initialized and registered in the factory, the factory is the one that must be initializing the offspring contract. The registration of the offspring contract is done with the use of submessages.
 
 The state of the offspring contract has a boolean variable called `active` which is initialized as true. I believe many implementations of the factory model will implement some sense of deactivation/finalization of the offspring contract, such as a finalized auction. That's why offspring are split into two groups in the factory, that is `active` and `inactive`.
 
@@ -150,7 +150,7 @@ This returns a list of all active offspring information (which consists of their
 
 | **Name**    | **Type**                              | **Description**                                                                                 | **Optional** | **Value If Omitted** |
 |-------------|---------------------------------------|-------------------------------------------------------------------------------------------------|--------------|----------------------|
-|   address   |           String (HumanAddr)          |                             the address whose offspring are queried                             |      No      |                      |
+|   address   |           String          |                             the address whose offspring are queried                             |      No      |                      |
 | viewing_key |                 String                |                                    viewing key of the address                                   |      No      |                      |
 |    filter   | one of "active", "inactive", or "all" |                      filter for listing only active or inactive offspring.                      |      Yes     |         "all"        |
 |  start_page |              number (u32)             | starting page number for the listed offspring (individually for both active and inactive lists) |      Yes     |           0          |
