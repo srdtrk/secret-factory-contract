@@ -20,7 +20,7 @@ impl HandleCallback for FactoryExecuteMsg {
     const BLOCK_SIZE: usize = BLOCK_SIZE;
 }
 
-/// this corresponds to RegisterOffspringInfo in factory, it is used to register
+/// this corresponds to ReplyOffspringInfo in factory, it is used to register
 /// an offspring in the factory after the callback.
 #[derive(Serialize)]
 #[serde(rename_all = "snake_case")]

@@ -34,7 +34,7 @@ use crate::offspring_msg::OffspringInstantiateMsg;
 ///
 /// * `deps`  - DepsMut containing all the contract's external dependencies
 /// * `_env`  - Env of contract's environment
-/// * `_info` - Carries the info of who sent the message and how much native funds were sent
+/// * `info`  - Carries the info of who sent the message and how much native funds were sent
 /// * `msg`   - InitMsg passed in with the instantiation message
 #[entry_point]
 pub fn instantiate(
@@ -287,7 +287,7 @@ fn try_set_key(deps: DepsMut, info: MessageInfo, key: &str) -> Result<Response, 
     Ok(Response::new().add_attribute("viewing_key", key))
 }
 
-/////////////////////////////////////// Query /////////////////////////////////////
+/////////////////////////////////////// Reply /////////////////////////////////////
 /// Returns Result<Response, ContractError>
 ///
 /// # Arguments
