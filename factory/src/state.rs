@@ -1,6 +1,9 @@
 use cosmwasm_std::Addr;
 
-use secret_toolkit::storage::{Item, Keymap};
+use secret_toolkit::{
+    serialization::Json,
+    storage::{Item, Keymap, KeymapBuilder, Keyset, WithoutIter},
+};
 
 use crate::structs::{CodeInfo, StoreOffspringInfo};
 
@@ -20,12 +23,15 @@ pub const ADMIN: Item<Addr> = Item::new(b"admin");
 pub const OFFSPRING_CODE: Item<CodeInfo> = Item::new(b"offspring_version");
 
 /// storage for all active/inactive offspring data. (HumanAddr refers to the address of the contract)
-pub static OFFSPRING_STORAGE: Keymap<Addr, StoreOffspringInfo> = Keymap::new(b"offspring_store");
+pub static OFFSPRING_STORAGE: Keymap<Addr, StoreOffspringInfo, Json, WithoutIter> =
+    KeymapBuilder::new(b"offspring_store")
+        .without_iter()
+        .build();
 /// storage of all active offspring addresses
-pub static ACTIVE_STORE: Keymap<Addr, bool> = Keymap::new(b"active");
+pub static ACTIVE_STORE: Keyset<Addr> = Keyset::new(b"active");
 /// storage of all inactive offspring addresses
-pub static INACTIVE_STORE: Keymap<Addr, bool> = Keymap::new(b"inactive");
+pub static INACTIVE_STORE: Keyset<Addr> = Keyset::new(b"inactive");
 /// owner's active offspring storage. Meant to be used with a suffix of the user's address.
-pub static OWNERS_ACTIVE: Keymap<Addr, bool> = Keymap::new(b"owners_active");
+pub static OWNERS_ACTIVE: Keyset<Addr> = Keyset::new(b"owners_active");
 /// owner's inactive offspring storage. Meant to be used with a suffix of the user's address.
-pub static OWNERS_INACTIVE: Keymap<Addr, bool> = Keymap::new(b"owners_inactive");
+pub static OWNERS_INACTIVE: Keyset<Addr> = Keyset::new(b"owners_inactive");

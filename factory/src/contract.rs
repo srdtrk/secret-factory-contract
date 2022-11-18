@@ -5,7 +5,7 @@ use cosmwasm_std::{
 
 use secret_toolkit::utils::{pad_handle_result, pad_query_result, InitCallback};
 
-use secret_toolkit::storage::Keymap;
+use secret_toolkit::storage::Keyset;
 use secret_toolkit::viewing_key::{ViewingKey, ViewingKeyStore};
 
 use crate::error::ContractError;
@@ -124,6 +124,15 @@ fn try_create_offspring(
     };
 
     let offspring_code = OFFSPRING_CODE.load(deps.storage)?;
+    let init_submsg = SubMsg::reply_always(
+        initmsg.to_cosmos_msg(
+            label,
+            offspring_code.code_id,
+            offspring_code.code_hash,
+            None,
+        )?,
+        OFFSPRING_INSTANTIATE_REPLY_ID,
+    );
     // You can instead turn initmsg into a Cosmos message doing the following:
     /*
     let init_cosmos_msg = CosmosMsg::Wasm(WasmMsg::Instantiate {
@@ -134,15 +143,6 @@ fn try_create_offspring(
         label,
     });
     */
-    let init_submsg = SubMsg::reply_always(
-        initmsg.to_cosmos_msg(
-            label,
-            offspring_code.code_id,
-            offspring_code.code_hash,
-            None,
-        )?,
-        OFFSPRING_INSTANTIATE_REPLY_ID,
-    );
 
     Ok(Response::new().add_submessage(init_submsg))
 }
@@ -165,9 +165,7 @@ fn try_deactivate_offspring(
     let offspring_addr = &info.sender;
 
     // verify offspring is in active list
-    let is_active = ACTIVE_STORE
-        .get(deps.storage, offspring_addr)
-        .unwrap_or(false);
+    let is_active = ACTIVE_STORE.contains(deps.storage, offspring_addr);
     if !is_active {
         return Err(ContractError::CustomError {
             val: "This offspring is already not active".to_string(),
@@ -178,7 +176,7 @@ fn try_deactivate_offspring(
     ACTIVE_STORE.remove(deps.storage, offspring_addr)?;
 
     // save to inactive
-    INACTIVE_STORE.insert(deps.storage, offspring_addr, &true)?;
+    INACTIVE_STORE.insert(deps.storage, offspring_addr)?;
 
     // remove from owner's active
     OWNERS_ACTIVE
@@ -188,7 +186,7 @@ fn try_deactivate_offspring(
     // save to owner's inactive
     OWNERS_INACTIVE
         .add_suffix(owner.to_string().as_bytes())
-        .insert(deps.storage, offspring_addr, &true)?;
+        .insert(deps.storage, offspring_addr)?;
 
     Ok(Response::new())
 }
@@ -338,11 +336,11 @@ fn register_offspring_impl(
     OFFSPRING_STORAGE.insert(deps.storage, &reply_info.address, &offspring)?;
 
     // add active list
-    ACTIVE_STORE.insert(deps.storage, &reply_info.address, &true)?;
+    ACTIVE_STORE.insert(deps.storage, &reply_info.address)?;
     // add to owner's active list
     OWNERS_ACTIVE
         .add_suffix(reply_info.owner.to_string().as_bytes())
-        .insert(deps.storage, &reply_info.address, &true)?;
+        .insert(deps.storage, &reply_info.address)?;
 
     Ok(Response::new().add_attribute("offspring_address", &reply_info.address))
 }
@@ -511,25 +509,25 @@ fn display_active_or_inactive_list(
     let size = page_size.unwrap_or(DEFAULT_PAGE_SIZE);
     let mut list: Vec<StoreOffspringInfo> = vec![];
 
-    let keymap: &Keymap<Addr, bool>;
-    let owners_active_store: Keymap<Addr, bool>;
-    let owners_inactive_store: Keymap<Addr, bool>;
+    let keyset: &Keyset<Addr>;
+    let owners_active_store: Keyset<Addr>;
+    let owners_inactive_store: Keyset<Addr>;
     match filter {
         FilterTypes::Active => {
             if let Some(owner_addr) = owner {
                 owners_active_store = OWNERS_ACTIVE.add_suffix(owner_addr.to_string().as_bytes());
-                keymap = &owners_active_store;
+                keyset = &owners_active_store;
             } else {
-                keymap = &ACTIVE_STORE;
+                keyset = &ACTIVE_STORE;
             }
         }
         FilterTypes::Inactive => {
             if let Some(owner_addr) = owner {
                 owners_inactive_store =
                     OWNERS_INACTIVE.add_suffix(owner_addr.to_string().as_bytes());
-                keymap = &owners_inactive_store;
+                keyset = &owners_inactive_store;
             } else {
-                keymap = &INACTIVE_STORE;
+                keyset = &INACTIVE_STORE;
             }
         }
         FilterTypes::All => {
@@ -539,8 +537,8 @@ fn display_active_or_inactive_list(
         }
     }
 
-    let mut paginated_keys_iter = keymap
-        .iter_keys(storage)?
+    let mut paginated_keys_iter = keyset
+        .iter(storage)?
         .skip((start_page as usize) * (size as usize))
         .take(size as usize);
 
