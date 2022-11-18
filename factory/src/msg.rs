@@ -1,4 +1,5 @@
 use schemars::JsonSchema;
+use secret_toolkit::permit::Permit;
 use serde::{Deserialize, Serialize};
 
 use cosmwasm_std::Addr;
@@ -50,6 +51,14 @@ pub enum ExecuteMsg {
 
     /// Allows an admin to start/stop all offspring creation
     SetStatus { stop: bool },
+
+    /// disallow the use of a permit
+    RevokePermit {
+        /// name of the permit that is no longer valid
+        permit_name: String,
+        /// optional message length padding
+        padding: Option<String>,
+    },
 }
 
 /// Queries
@@ -58,10 +67,12 @@ pub enum ExecuteMsg {
 pub enum QueryMsg {
     /// lists all offspring whose owner is the given address.
     ListMyOffspring {
-        // address whose activity to display
-        address: String,
+        /// permit used to validate the querier. Disregarded if viewing key - address pair is provided.
+        permit: Option<Permit>,
+        /// address whose activity to display
+        address: Option<String>,
         /// viewing key
-        viewing_key: String,
+        viewing_key: Option<String>,
         /// optional filter for only active or inactive offspring.  If not specified, lists all
         #[serde(default)]
         filter: Option<FilterTypes>,
@@ -97,6 +108,8 @@ pub enum QueryMsg {
         /// viewing key
         viewing_key: String,
     },
+    /// authenticates the supplied permit. This should be called by offspring.
+    IsPermitValid { permit: Permit },
 }
 
 /// the filter types when viewing an address' offspring
@@ -135,6 +148,13 @@ pub enum QueryAnswer {
     ViewingKeyError { error: String },
     /// result of authenticating address/key pair
     IsKeyValid { is_valid: bool },
+    /// result of authenticating a permit
+    IsPermitValid {
+        is_valid: bool,
+        /// address of the permit signer if the permit was valid
+        #[serde(skip_serializing_if = "Option::is_none")]
+        address: Option<Addr>,
+    },
 }
 
 /// success or failure response

@@ -38,6 +38,12 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "b645a089122eccb6111b4f81cbc1a49f5900ac4666bb93ac027feaecf15607bf"
 
 [[package]]
+name = "bech32"
+version = "0.8.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "cf9ff0bbfd639f15c74af777d81383cf53efb7c93613f6cab67c6c11e05bbf8b"
+
+[[package]]
 name = "bincode2"
 version = "2.0.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -76,9 +82,9 @@ checksum = "e4c78c047431fee22c1a7bb92e00ad095a02a983affe4d8a72e2a2c62c1b94f3"
 
 [[package]]
 name = "cosmwasm-derive"
-version = "1.1.5"
+version = "1.1.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "8eb69f4f7a8a4bce68c8fbd3646238fede1e77056e4ea31c5b6bfc37b709eec3"
+checksum = "a552716cf87ad173cd6b593fd72bf24fab490e0e5420aa75a227d6817d06b5df"
 dependencies = [
  "syn",
 ]
@@ -402,6 +408,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "remain"
+version = "0.2.5"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "1a81bc6a3aaeb180f767bd2bda8c03bac5b93b3b69a783c66f35d16a4df276cf"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "syn",
+]
+
+[[package]]
 name = "rfc6979"
 version = "0.1.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -410,6 +427,17 @@ dependencies = [
  "crypto-bigint",
  "hmac",
  "zeroize",
+]
+
+[[package]]
+name = "ripemd160"
+version = "0.9.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "2eca4ecc81b7f313189bf73ce724400a07da2a6dac19588b03c8bd76a2dcc251"
+dependencies = [
+ "block-buffer",
+ "digest",
+ "opaque-debug",
 ]
 
 [[package]]
@@ -521,8 +549,10 @@ dependencies = [
 [[package]]
 name = "secret-toolkit"
 version = "0.6.0"
-source = "git+https://github.com/srdtrk/secret-toolkit/?branch=cw-v1.0-storage#39d5bfb0d1235eba39fccba1acda6c9f57b3a665"
+source = "git+https://github.com/srdtrk/secret-toolkit/?branch=cw-v1.0-storage#c00e4cfa8142fed8ab7a0338030a88b23870feec"
 dependencies = [
+ "secret-toolkit-crypto",
+ "secret-toolkit-permit",
  "secret-toolkit-serialization",
  "secret-toolkit-storage",
  "secret-toolkit-utils",
@@ -532,7 +562,7 @@ dependencies = [
 [[package]]
 name = "secret-toolkit-crypto"
 version = "0.6.0"
-source = "git+https://github.com/srdtrk/secret-toolkit/?branch=cw-v1.0-storage#39d5bfb0d1235eba39fccba1acda6c9f57b3a665"
+source = "git+https://github.com/srdtrk/secret-toolkit/?branch=cw-v1.0-storage#c00e4cfa8142fed8ab7a0338030a88b23870feec"
 dependencies = [
  "rand_chacha",
  "rand_core 0.5.1",
@@ -541,9 +571,23 @@ dependencies = [
 ]
 
 [[package]]
+name = "secret-toolkit-permit"
+version = "0.6.0"
+source = "git+https://github.com/srdtrk/secret-toolkit/?branch=cw-v1.0-storage#c00e4cfa8142fed8ab7a0338030a88b23870feec"
+dependencies = [
+ "bech32",
+ "remain",
+ "ripemd160",
+ "schemars 0.8.11",
+ "secret-cosmwasm-std",
+ "secret-toolkit-crypto",
+ "serde",
+]
+
+[[package]]
 name = "secret-toolkit-serialization"
 version = "0.6.0"
-source = "git+https://github.com/srdtrk/secret-toolkit/?branch=cw-v1.0-storage#39d5bfb0d1235eba39fccba1acda6c9f57b3a665"
+source = "git+https://github.com/srdtrk/secret-toolkit/?branch=cw-v1.0-storage#c00e4cfa8142fed8ab7a0338030a88b23870feec"
 dependencies = [
  "bincode2",
  "schemars 0.8.11",
@@ -554,7 +598,7 @@ dependencies = [
 [[package]]
 name = "secret-toolkit-storage"
 version = "0.6.1"
-source = "git+https://github.com/srdtrk/secret-toolkit/?branch=cw-v1.0-storage#39d5bfb0d1235eba39fccba1acda6c9f57b3a665"
+source = "git+https://github.com/srdtrk/secret-toolkit/?branch=cw-v1.0-storage#c00e4cfa8142fed8ab7a0338030a88b23870feec"
 dependencies = [
  "secret-cosmwasm-std",
  "secret-cosmwasm-storage",
@@ -565,7 +609,7 @@ dependencies = [
 [[package]]
 name = "secret-toolkit-utils"
 version = "0.6.0"
-source = "git+https://github.com/srdtrk/secret-toolkit/?branch=cw-v1.0-storage#39d5bfb0d1235eba39fccba1acda6c9f57b3a665"
+source = "git+https://github.com/srdtrk/secret-toolkit/?branch=cw-v1.0-storage#c00e4cfa8142fed8ab7a0338030a88b23870feec"
 dependencies = [
  "schemars 0.8.11",
  "secret-cosmwasm-std",
@@ -576,7 +620,7 @@ dependencies = [
 [[package]]
 name = "secret-toolkit-viewing-key"
 version = "0.6.0"
-source = "git+https://github.com/srdtrk/secret-toolkit/?branch=cw-v1.0-storage#39d5bfb0d1235eba39fccba1acda6c9f57b3a665"
+source = "git+https://github.com/srdtrk/secret-toolkit/?branch=cw-v1.0-storage#c00e4cfa8142fed8ab7a0338030a88b23870feec"
 dependencies = [
  "base64 0.11.0",
  "schemars 0.7.6",
@@ -641,9 +685,9 @@ dependencies = [
 
 [[package]]
 name = "serde_json"
-version = "1.0.87"
+version = "1.0.88"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "6ce777b7b150d76b9cf60d28b55f5847135a003f7d7350c6be7a773508ce7d45"
+checksum = "8e8b3801309262e8184d9687fb697586833e939767aea0dda89f5a8e650e8bd7"
 dependencies = [
  "itoa",
  "ryu",

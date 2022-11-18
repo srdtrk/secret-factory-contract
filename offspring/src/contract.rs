@@ -1,11 +1,13 @@
 use cosmwasm_std::{
     entry_point, to_binary, Addr, Binary, Deps, DepsMut, Env, MessageInfo, Response, Storage,
 };
+use secret_toolkit::permit::Permit;
 use secret_toolkit::utils::{HandleCallback, Query};
 
 use crate::error::ContractError;
 use crate::factory_msg::{
     FactoryExecuteMsg, FactoryOffspringInfo, FactoryQueryMsg, IsKeyValidWrapper,
+    IsPermitValidWrapper,
 };
 use crate::msg::{ExecuteMsg, InstantiateMsg, QueryAnswer, QueryMsg};
 use crate::state::{State, FACTORY_INFO, IS_ACTIVE, OWNER, STATE};
@@ -152,7 +154,13 @@ pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> Result<Binary, ContractErr
         QueryMsg::GetCount {
             address,
             viewing_key,
-        } => Ok(to_binary(&query_count(deps, address, viewing_key)?)?),
+            permit,
+        } => Ok(to_binary(&query_count(
+            deps,
+            permit,
+            address,
+            viewing_key,
+        )?)?),
     }
 }
 
@@ -161,20 +169,30 @@ pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> Result<Binary, ContractErr
 /// # Arguments
 ///
 /// * `deps`        - Deps containing all the contract's external dependencies
-/// * `address`     - a reference to the address whose viewing key is being validated.
-/// * `viewing_key` - String key used to authenticate the query.
+/// * `permit`      - optional query permit to authenticate the query request. This or viewing key must be provided.
+/// * `address`     - optional address whose viewing key is being validated.
+/// * `viewing_key` - Optional string key used to authenticate the query.
 fn query_count(
     deps: Deps,
-    address: String,
-    viewing_key: String,
+    permit: Option<Permit>,
+    address: Option<String>,
+    viewing_key: Option<String>,
 ) -> Result<QueryAnswer, ContractError> {
-    let addr = deps.api.addr_validate(&address)?;
-    if OWNER.load(deps.storage)? == addr {
+    let addr = if let (Some(address), Some(viewing_key)) = (address, viewing_key) {
+        let addr = deps.api.addr_validate(&address)?;
         enforce_valid_viewing_key(deps, &addr, viewing_key)?;
+        addr
+    } else if let Some(permit) = permit {
+        enforce_valid_permit(deps, permit)?
+    } else {
+        return Err(ContractError::Unauthorized {});
+    };
+
+    if OWNER.load(deps.storage)? == addr {
         let state: State = STATE.load(deps.storage)?;
         Ok(QueryAnswer::CountResponse { count: state.count })
     } else {
-        Err(ContractError::ViewingKeyOrUnauthorized {})
+        Err(ContractError::Unauthorized {})
     }
 }
 
@@ -205,6 +223,27 @@ fn enforce_valid_viewing_key(
         Ok(())
     } else {
         Err(ContractError::ViewingKeyOrUnauthorized {})
+    }
+}
+
+/// Returns Result<Addr, ContractError>, the address of the permit's signer
+///
+/// # Arguments
+///
+/// * `deps`   - Deps containing all the contract's external dependencies
+/// * `permit` - permit offered for authentication
+fn enforce_valid_permit(deps: Deps, permit: Permit) -> Result<Addr, ContractError> {
+    let factory = FACTORY_INFO.load(deps.storage)?;
+    let permit_valid_msg = FactoryQueryMsg::IsPermitValid { permit };
+    let permit_valid_resp: IsPermitValidWrapper =
+        permit_valid_msg.query(deps.querier, factory.code_hash, factory.address.to_string())?;
+    if permit_valid_resp.is_key_valid.is_valid {
+        permit_valid_resp
+            .is_key_valid
+            .address
+            .ok_or(ContractError::Unauthorized {})
+    } else {
+        Err(ContractError::Unauthorized {})
     }
 }
 

@@ -3,13 +3,14 @@ use cosmwasm_std::{
     Response, Storage, SubMsg, SubMsgResult,
 };
 
+use secret_toolkit::permit::{validate, Permit, RevokedPermits};
 use secret_toolkit::utils::{pad_handle_result, pad_query_result, InitCallback};
 
 use secret_toolkit::storage::Keyset;
 use secret_toolkit::viewing_key::{ViewingKey, ViewingKeyStore};
 
 use crate::error::ContractError;
-use crate::state::{BLOCK_SIZE, OFFSPRING_INSTANTIATE_REPLY_ID};
+use crate::state::{BLOCK_SIZE, OFFSPRING_INSTANTIATE_REPLY_ID, PREFIX_REVOKED_PERMITS};
 use crate::structs::ReplyOffspringInfo;
 use crate::{
     msg::{
@@ -80,6 +81,7 @@ pub fn execute(
             offspring_code_info,
         } => try_new_contract(deps, info, offspring_code_info),
         ExecuteMsg::SetStatus { stop } => try_set_status(deps, info, stop),
+        ExecuteMsg::RevokePermit { permit_name, .. } => revoke_permit(deps, info, permit_name),
     };
     pad_handle_result(response, BLOCK_SIZE)
 }
@@ -285,6 +287,30 @@ fn try_set_key(deps: DepsMut, info: MessageInfo, key: &str) -> Result<Response, 
     Ok(Response::new().add_attribute("viewing_key", key))
 }
 
+/// Returns Result<Response, ContractError>
+///
+/// Revokes a all query permits with the given name
+///
+/// # Arguments
+///
+/// * `deps` - DepsMut containing all the contract's external dependencies
+/// * `info` - Carries the info of who sent the message and how much native funds were sent along
+/// * `key`  - string slice to be used as the viewing key
+fn revoke_permit(
+    deps: DepsMut,
+    info: MessageInfo,
+    permit_name: String,
+) -> Result<Response, ContractError> {
+    RevokedPermits::revoke_permit(
+        deps.storage,
+        PREFIX_REVOKED_PERMITS,
+        info.sender.as_ref(),
+        &permit_name,
+    );
+
+    Ok(Response::new())
+}
+
 /////////////////////////////////////// Reply /////////////////////////////////////
 /// Returns Result<Response, ContractError>
 ///
@@ -354,15 +380,25 @@ fn register_offspring_impl(
 /// * `_env` - Env of contract's environment
 /// * `msg`  - QueryMsg passed in with the query call
 #[entry_point]
-pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> Result<Binary, ContractError> {
+pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> Result<Binary, ContractError> {
     let response = match msg {
         QueryMsg::ListMyOffspring {
+            permit,
             address,
             viewing_key,
             filter,
             start_page,
             page_size,
-        } => try_list_my(deps, address, viewing_key, filter, start_page, page_size),
+        } => try_list_my(
+            deps,
+            env,
+            permit,
+            address,
+            viewing_key,
+            filter,
+            start_page,
+            page_size,
+        ),
         QueryMsg::ListActiveOffspring {
             start_page,
             page_size,
@@ -375,8 +411,24 @@ pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> Result<Binary, ContractErr
             address,
             viewing_key,
         } => try_validate_key(deps, &address, viewing_key),
+        QueryMsg::IsPermitValid { permit } => try_validate_permit(deps, env, permit),
     };
     pad_query_result(response, BLOCK_SIZE)
+}
+
+/// Returns Result<Binary, ContractError> indicating whether the address/key pair is valid
+///
+/// # Arguments
+///
+/// * `deps`             - Deps containing all the contract's external dependencies
+/// * `permit`           - a reference to the permit offered for authentication
+/// * `contract_address` - String key used for authentication
+fn try_validate_permit(deps: Deps, env: Env, permit: Permit) -> Result<Binary, ContractError> {
+    let addr = is_permit_valid(deps, &permit, env.contract.address.to_string());
+    Ok(to_binary(&QueryAnswer::IsPermitValid {
+        is_valid: addr.is_ok(),
+        address: addr.ok(),
+    })?)
 }
 
 /// Returns StdResult<Binary> indicating whether the address/key pair is valid
@@ -430,30 +482,65 @@ fn is_key_valid(storage: &dyn Storage, account: &str, viewing_key: String) -> bo
     ViewingKey::check(storage, account, &viewing_key).is_ok()
 }
 
+/// Returns Result<Addr, ContractError>, the address of the permit's signer
+///
+/// # Arguments
+///
+/// * `deps`             - Deps containing all the contract's external dependencies
+/// * `permit`           - a reference to the permit offered for authentication
+/// * `contract_address` - String key used for authentication
+fn is_permit_valid(
+    deps: Deps,
+    permit: &Permit,
+    contract_address: String,
+) -> Result<Addr, ContractError> {
+    let address = validate(
+        deps,
+        PREFIX_REVOKED_PERMITS,
+        permit,
+        contract_address,
+        Some("secret"),
+    )?;
+    Ok(deps.api.addr_validate(&address)?)
+}
+
 /// Returns Result<Binary, ContractError> listing the offspring with the address as its owner
 ///
 /// # Arguments
 ///
 /// * `deps`        - Deps containing all the contract's external dependencies
-/// * `address`     - String address whose offspring should be listed
-/// * `viewing_key` - String key used to authenticate the query
+/// * `env`         - Env of contract's environment
+/// * `permit`      - optional query permit to authenticate the query request. Either this or viewing key must be provided.
+/// * `address`     - Optional string address whose offspring should be listed. Either this or permit must be provided.
+/// * `viewing_key` - Optional string key used to authenticate the query. Either this or permit must be provided.
 /// * `filter`      - optional choice of display filters
 /// * `start_page`  - optional start page for the offsprings returned and listed
 /// * `page_size`   - optional number of offspring to return in this page
+#[allow(clippy::too_many_arguments)]
 fn try_list_my(
     deps: Deps,
-    address: String,
-    viewing_key: String,
+    env: Env,
+    permit: Option<Permit>,
+    address: Option<String>,
+    viewing_key: Option<String>,
     filter: Option<FilterTypes>,
     start_page: Option<u32>,
     page_size: Option<u32>,
 ) -> Result<Binary, ContractError> {
-    let address = deps.api.addr_validate(&address)?;
-    // if key matches
-    if !is_key_valid(deps.storage, address.as_str(), viewing_key) {
-        return Ok(to_binary(&QueryAnswer::ViewingKeyError {
-            error: "Wrong viewing key for this address or viewing key not set".to_string(),
-        })?);
+    let addr;
+    // add permits
+    if let (Some(address), Some(viewing_key)) = (address, viewing_key) {
+        addr = deps.api.addr_validate(&address)?;
+        // if key matches
+        if !is_key_valid(deps.storage, addr.as_str(), viewing_key) {
+            return Ok(to_binary(&QueryAnswer::ViewingKeyError {
+                error: "Wrong viewing key for this address or viewing key not set".to_string(),
+            })?);
+        }
+    } else if let Some(permit) = permit {
+        addr = is_permit_valid(deps, &permit, env.contract.address.to_string())?;
+    } else {
+        return Err(ContractError::Unauthorized {});
     }
     let mut active_list: Option<Vec<StoreOffspringInfo>> = None;
     let mut inactive_list: Option<Vec<StoreOffspringInfo>> = None;
@@ -464,7 +551,7 @@ fn try_list_my(
     if types == FilterTypes::Active || types == FilterTypes::All {
         active_list = Some(display_active_or_inactive_list(
             deps.storage,
-            Some(address.clone()),
+            Some(addr.clone()),
             FilterTypes::Active,
             start_page,
             page_size,
@@ -474,7 +561,7 @@ fn try_list_my(
     if types == FilterTypes::Inactive || types == FilterTypes::All {
         inactive_list = Some(display_active_or_inactive_list(
             deps.storage,
-            Some(address),
+            Some(addr),
             FilterTypes::Inactive,
             start_page,
             page_size,

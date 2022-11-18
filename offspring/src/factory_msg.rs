@@ -1,7 +1,10 @@
 use cosmwasm_std::Addr;
 use serde::{Deserialize, Serialize};
 
-use secret_toolkit::utils::{HandleCallback, Query};
+use secret_toolkit::{
+    permit::Permit,
+    utils::{HandleCallback, Query},
+};
 
 use crate::state::BLOCK_SIZE;
 
@@ -43,6 +46,8 @@ pub enum FactoryQueryMsg {
         /// viewing key
         viewing_key: String,
     },
+    /// authenticates the supplied permit. This should be called by offspring.
+    IsPermitValid { permit: Permit },
 }
 
 impl Query for FactoryQueryMsg {
@@ -59,4 +64,17 @@ pub struct IsKeyValid {
 #[derive(Serialize, Deserialize, Debug)]
 pub struct IsKeyValidWrapper {
     pub is_key_valid: IsKeyValid,
+}
+
+/// result of authenticating address/key pair
+#[derive(Serialize, Deserialize, Debug)]
+pub struct IsPermitValid {
+    pub is_valid: bool,
+    pub address: Option<Addr>,
+}
+
+/// IsKeyValid wrapper struct
+#[derive(Serialize, Deserialize, Debug)]
+pub struct IsPermitValidWrapper {
+    pub is_key_valid: IsPermitValid,
 }

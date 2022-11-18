@@ -1,7 +1,7 @@
 use cosmwasm_std::Addr;
 
 use secret_toolkit::{
-    serialization::Json,
+    serialization::Bincode2,
     storage::{Item, Keymap, KeymapBuilder, Keyset, WithoutIter},
 };
 
@@ -14,6 +14,8 @@ pub const BLOCK_SIZE: usize = 256;
 pub const DEFAULT_PAGE_SIZE: u32 = 200;
 /// This is the id offspring instantiate submessage returns upon reply
 pub const OFFSPRING_INSTANTIATE_REPLY_ID: u64 = 1;
+/// Revoked permits prefix key
+pub const PREFIX_REVOKED_PERMITS: &str = "revoked_permits";
 
 /// whether or not the contract is stopped
 pub const IS_STOPPED: Item<bool> = Item::new(b"is_stopped");
@@ -23,7 +25,7 @@ pub const ADMIN: Item<Addr> = Item::new(b"admin");
 pub const OFFSPRING_CODE: Item<CodeInfo> = Item::new(b"offspring_version");
 
 /// storage for all active/inactive offspring data. (HumanAddr refers to the address of the contract)
-pub static OFFSPRING_STORAGE: Keymap<Addr, StoreOffspringInfo, Json, WithoutIter> =
+pub static OFFSPRING_STORAGE: Keymap<Addr, StoreOffspringInfo, Bincode2, WithoutIter> =
     KeymapBuilder::new(b"offspring_store")
         .without_iter()
         .build();

@@ -1,5 +1,6 @@
 use cosmwasm_std::Addr;
 use schemars::JsonSchema;
+use secret_toolkit::permit::Permit;
 use serde::{Deserialize, Serialize};
 
 #[derive(Serialize, Deserialize, Clone, Debug, JsonSchema)]
@@ -32,10 +33,12 @@ pub enum QueryMsg {
     // GetCount returns the current count as a json-encoded number. Can only be queried by the owner,
     // to demonstrate how to use the viewing key in the factory.
     GetCount {
+        /// permit to authenticate. Disregarded if viewing key - address pair is provided.
+        permit: Option<Permit>,
         /// address to authenticate as a viewer
-        address: String,
+        address: Option<String>,
         /// viewer's viewing key
-        viewing_key: String,
+        viewing_key: Option<String>,
     },
 }
 

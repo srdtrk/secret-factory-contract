@@ -38,7 +38,7 @@ serde = { version = "1.0.103", default-features = false, features = ["derive"] }
 schemars = "0.8.8"
 cosmwasm-std = { package = "secret-cosmwasm-std", version = "1.0.0" }
 cosmwasm-storage = { package = "secret-cosmwasm-storage", version = "1.0.0" }
-secret-toolkit = { version = "0.6.0", default-features = false, features = ["utils", "storage", "serialization"] }
+secret-toolkit = { version = "0.6.0", default-features = false, features = ["utils", "storage", "serialization", "permit"] }
 #serde-json-wasm = "0.2.1"
 thiserror = { version = "1.0.31" }
 #secp256k1 = "0.20.3"
