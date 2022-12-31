@@ -73,7 +73,7 @@ pub struct IsPermitValid {
     pub address: Option<Addr>,
 }
 
-/// IsKeyValid wrapper struct
+/// IsPermitValid wrapper struct
 #[derive(Serialize, Deserialize, Debug)]
 pub struct IsPermitValidWrapper {
     pub is_key_valid: IsPermitValid,

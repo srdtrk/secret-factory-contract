@@ -129,6 +129,38 @@
         }
       },
       "additionalProperties": false
+    },
+    {
+      "description": "result of authenticating a permit",
+      "type": "object",
+      "required": [
+        "is_permit_valid"
+      ],
+      "properties": {
+        "is_permit_valid": {
+          "type": "object",
+          "required": [
+            "is_valid"
+          ],
+          "properties": {
+            "address": {
+              "description": "address of the permit signer if the permit was valid",
+              "anyOf": [
+                {
+                  "$ref": "#/definitions/Addr"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "is_valid": {
+              "type": "boolean"
+            }
+          }
+        }
+      },
+      "additionalProperties": false
     }
   ],
   "definitions": {
