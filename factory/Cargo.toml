@@ -38,7 +38,7 @@ cosmwasm-storage = { package = "secret-cosmwasm-storage", version = "1.0.0" }
 schemars = "0.8.8"
 serde = { version = "1.0.103", default-features = false, features = ["derive"] }
 snafu = { version = "0.6.3" }
-secret-toolkit = { git = "https://github.com/srdtrk/secret-toolkit/", branch = "cw-v1.0-storage", default-features = false, features = ["utils", "storage", "serialization", "viewing-key", "permit"] }
+secret-toolkit = { version = "0.7.0", default-features = false, features = ["utils", "storage", "serialization", "viewing-key", "permit"] }
 thiserror = { version = "1.0.31" }
 
 [dev-dependencies]
