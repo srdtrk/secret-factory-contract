@@ -36,12 +36,12 @@ library = []
 snafu = { version = "0.6.3" }
 serde = { version = "1.0.103", default-features = false, features = ["derive"] }
 schemars = "0.8.8"
-cosmwasm-std = { package = "secret-cosmwasm-std", version = "1.0.0" }
-cosmwasm-storage = { package = "secret-cosmwasm-storage", version = "1.0.0" }
-secret-toolkit = { version = "0.7.0", default-features = false, features = ["utils", "storage", "serialization", "permit"] }
+cosmwasm-std = { git = "https://github.com/scrtlabs/cosmwasm", tag = "v1.1.9-secret" }
+cosmwasm-storage = { git = "https://github.com/scrtlabs/cosmwasm", tag = "v1.1.9-secret" }
+secret-toolkit = { git = "https://github.com/scrtlabs/secret-toolkit", tag = "v0.8.0", features = ["utils", "storage", "serialization", "permit"] }
 #serde-json-wasm = "0.2.1"
 thiserror = { version = "1.0.31" }
 #secp256k1 = "0.20.3"
 
 [dev-dependencies]
-cosmwasm-schema = { git = "https://github.com/scrtlabs/cosmwasm/", branch = "secret" }
+cosmwasm-schema = { version = "1.2.2" }
